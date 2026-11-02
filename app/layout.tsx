@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Pixelify_Sans } from "next/font/google";
 import localFont from "next/font/local";
+import Link from "next/link";
 
 import TreeMark from "@/components/TreeMark";
 
@@ -60,16 +61,16 @@ export default function RootLayout({
         {/* ---------- FLOATING NAV ---------- */}
         <header className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
           <nav className="flex items-center gap-1 rounded-xl border border-white/70 bg-white/60 p-1.5 text-sm text-neutral-800 shadow-sm backdrop-blur-md">
-            <a
+            <Link
               href="/"
               aria-label="Prefix Tree home"
               className="rounded-lg px-2 py-1.5 hover:bg-black/5"
             >
               <TreeMark className="h-5 w-5" />
-            </a>
-            <a href="/#about" className="rounded-lg px-3 py-1.5 hover:bg-black/5">
+            </Link>
+            <Link href="/#about" className="rounded-lg px-3 py-1.5 hover:bg-black/5">
               About
-            </a>
+            </Link>
             <a
               href={`mailto:${email}`}
               className="ml-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-white hover:bg-neutral-700"
@@ -85,12 +86,12 @@ export default function RootLayout({
         <footer className="mt-24">
           <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-6 text-sm text-neutral-600 sm:px-12">
             <div className="flex gap-5">
-              <a href="/" className="hover:text-neutral-900">
+              <Link href="/" className="hover:text-neutral-900">
                 Home
-              </a>
-              <a href="/privacy" className="hover:text-neutral-900">
+              </Link>
+              <Link href="/privacy" className="hover:text-neutral-900">
                 Privacy
-              </a>
+              </Link>
               <a href={`mailto:${email}`} className="hover:text-neutral-900">
                 {email}
               </a>

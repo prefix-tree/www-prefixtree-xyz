@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Site for Prefix Tree ([prefixtree.xyz](https://prefixtree.xyz)). Next.js 14 App Router + Tailwind, hosted on Cloudflare Pages.
+Site for Prefix Tree ([prefixtree.xyz](https://prefixtree.xyz)). Next.js 16 App Router + Tailwind, hosted on Cloudflare Pages.
 
 **Direction:** the site's overall purpose is crafting different cool projects, run by Bohdan Snisar and Pavel Grachev-Mousset. It is moving away from the earlier "applied-AI consultancy" pitch, so much of the existing content (consultancy copy) is expected to be dropped. Don't extend the old consultancy framing. The package was previously named "Overvu Solutions" (`name` in package.json still says so).
 
@@ -14,7 +14,7 @@ Use pnpm (declared in `packageManager` in package.json). The stray `package-lock
 
 - `pnpm dev` — local dev server
 - `pnpm build` — production build (also the only real check: type errors and lint fail the build)
-- `pnpm lint` — `next lint` (extends `next/core-web-vitals` + `next/typescript`)
+- `pnpm lint` — `eslint .` (flat config in `eslint.config.mjs`, extends `eslint-config-next` core-web-vitals + typescript)
 
 There is no test suite.
 

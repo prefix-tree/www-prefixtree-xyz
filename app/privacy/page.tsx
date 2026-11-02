@@ -8,12 +8,6 @@ export const metadata: Metadata = {
 
 const email = "partners@prefixtree.xyz";
 
-const Ampersand = () => {
-  return (
-    <span className="mr-4 rotate" style={{ fontSize: "0.856em" }}>§</span>
-  );
-};
-
 const SubSectionHeader = ({ title }: { title: string }) => {
   return (
     <h3 className="text-left text-xl mb-3 font-semibold mt-6">
