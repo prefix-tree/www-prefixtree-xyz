@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview"
+    "deploy": "pnpm cf:build && opennextjs-cloudflare deploy",
+    "preview": "pnpm cf:build && opennextjs-cloudflare preview",
+    "cf:build": "opennextjs-cloudflare build"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.15",
