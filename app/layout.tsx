@@ -1,44 +1,45 @@
-/* app/layout.tsx (Next 13+/14 root layout) */
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Libre_Baskerville } from "next/font/google";
-import { Mail } from "lucide-react";
+import { Instrument_Serif, Pixelify_Sans } from "next/font/google";
+import localFont from "next/font/local";
 
-import LinkedIn from "@/components/svg/LinkedIn";
-import X from "@/components/svg/X";
+import TreeMark from "@/components/TreeMark";
 
 import "./globals.css";
 
-// /* ————— fonts ————— */
-// const fontV2 = Cormorant_Garamond({
-//   subsets: ["latin"],
-//   weight: ["400", "700"],
-//   display: "swap",
-//   variable: "--font-cormorant-garamond",
-// });
-
-const font = Libre_Baskerville({
-  weight: ["400", "700"],
+const serif = Instrument_Serif({
+  weight: "400",
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-libre-baskerville",
+  variable: "--font-serif",
+});
+
+const pixel = Pixelify_Sans({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-pixel",
+});
+
+const sans = localFont({
+  src: "./fonts/GeistVF.woff",
+  weight: "100 900",
+  variable: "--font-sans",
+});
+
+const mono = localFont({
+  src: "./fonts/GeistMonoVF.woff",
+  weight: "100 900",
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
-  title: "Prefix Tree - AI Leadership Solutions",
-  description: "Turn your company into an industry leader with AI.",
+  title: "Prefix Tree",
+  description: "We craft products.",
   openGraph: {
-    title: "Prefix Tree - AI Leadership Solutions",
-    description: "Turn your company into an industry leader with AI.",
+    title: "Prefix Tree",
+    description: "We craft products.",
     url: "https://prefixtree.xyz",
-    siteName: "PRFX",
-    images: [
-      {
-        url: "https://prefixtree.xyz/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Prefix Tree - AI Leadership Solutions",
-      },
-    ],
+    siteName: "Prefix Tree",
     locale: "en_US",
     type: "website",
   },
@@ -53,74 +54,50 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      {/* never let anything poke out horizontally */}
-      <body className={`${font.className} overflow-x-hidden`}>
-        {/* ---------- HEADER ---------- */}
-        <header className="flex items-baseline justify-center py-12 px-4 sm:px-8">
-          {/* smaller left-margin on phones so the whole chunk stays < 100 vw */}
-          <nav className="w-full items-baseline flex justify-between text-xl md:max-w-sm">
-            <a href="/" className="text-xl">
-              <h1>PRFX</h1>
-            </a>
+      <body
+        className={`${serif.variable} ${pixel.variable} ${sans.variable} ${mono.variable} font-sans antialiased overflow-x-hidden`}
+      >
+        {/* ---------- FLOATING NAV ---------- */}
+        <header className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
+          <nav className="flex items-center gap-1 rounded-xl border border-white/70 bg-white/60 p-1.5 text-sm text-neutral-800 shadow-sm backdrop-blur-md">
             <a
-              href="/blog"
-              className="hover:underline hover:underline-offset-4"
+              href="/"
+              aria-label="Prefix Tree home"
+              className="rounded-lg px-2 py-1.5 hover:bg-black/5"
             >
-              Blog
+              <TreeMark className="h-5 w-5" />
+            </a>
+            <a href="/#about" className="rounded-lg px-3 py-1.5 hover:bg-black/5">
+              About
             </a>
             <a
               href={`mailto:${email}`}
-              className="hover:underline hover:underline-offset-4"
+              className="ml-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-white hover:bg-neutral-700"
             >
-              Mail
+              Get in touch
             </a>
           </nav>
         </header>
 
-        {/* ---------- MAIN CONTENT ---------- */}
-        <main className="container w-fill md:max-w-4xl mx-auto px-4 sm:px-8">
-          {children}
-        </main>
+        <main>{children}</main>
 
         {/* ---------- FOOTER ---------- */}
-        <footer className="mt-48 pb-12 flex  flex-wrap items-center justify-center gap-10 px-4 sm:px-8">
-          <a
-            href={`mailto:${email}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-md flex items-center gap-2 hover:underline hover:underline-offset-4"
-          >
-            <Mail size={16} />
-            Mail
-          </a>
-
-          <a
-            href="/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-md flex items-center gap-2 hover:underline hover:underline-offset-4"
-          >
-            <span>Privacy</span>
-          </a>
-
-          <a
-            href="https://www.linkedin.com/company/overvue-solutions/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          >
-            <LinkedIn />
-          </a>
-          <a
-            href="https://x.com/Overvu_"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          >
-            <X />
-          </a>
-
-          <h3 className="text-lg">© {new Date().getFullYear()} Prefix Tree</h3>
+        <footer className="mt-24">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-6 text-sm text-neutral-600 sm:px-12">
+            <div className="flex gap-5">
+              <a href="/" className="hover:text-neutral-900">
+                Home
+              </a>
+              <a href="/privacy" className="hover:text-neutral-900">
+                Privacy
+              </a>
+              <a href={`mailto:${email}`} className="hover:text-neutral-900">
+                {email}
+              </a>
+            </div>
+            <span>© {new Date().getFullYear()} Prefix Tree</span>
+          </div>
+          <div className="stripes" />
         </footer>
       </body>
     </html>
