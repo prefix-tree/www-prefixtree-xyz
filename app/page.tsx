@@ -1,5 +1,4 @@
-import Image from "next/image";
-
+import AsciiGarden from "@/components/AsciiGarden";
 import TreeMark from "@/components/TreeMark";
 import Trie from "@/components/Trie";
 
@@ -24,23 +23,17 @@ export default function Home() {
   return (
     <>
       {/* ---------- HERO ---------- */}
-      <section className="hero-sky relative flex min-h-[100svh] flex-col overflow-hidden">
-        <div className="pixel-grid absolute inset-0" />
+      <section className="hero-garden relative flex min-h-[100svh] flex-col justify-between overflow-hidden">
+        <AsciiGarden />
 
-        <h1 className="relative z-10 pt-24 text-center font-pixel text-3xl [font-variant-ligatures:none] text-neutral-900 md:text-4xl">
+        <h1
+          data-garden-clear
+          className="relative z-10 mx-auto mt-24 font-pixel text-3xl [font-variant-ligatures:none] text-neutral-900 md:text-4xl"
+        >
           Prefix Tree
         </h1>
 
-        <div className="relative min-h-[320px] flex-1">
-          <Image
-            alt="Pixel-art tree with circuit-board roots"
-            src="/hero.png"
-            fill
-            priority
-            sizes="(min-width: 768px) 460px, 80vw"
-            className="object-contain object-bottom pt-8"
-          />
-        </div>
+        <div className="min-h-[360px] flex-1 sm:hidden" />
 
         <div className="relative z-10 m-4 rounded-2xl border border-white/60 bg-white/50 p-6 shadow-sm backdrop-blur-md sm:absolute sm:bottom-10 sm:left-10 sm:m-0 sm:max-w-sm">
           <h2 className="font-serif text-4xl leading-none text-neutral-900">
@@ -59,7 +52,10 @@ export default function Home() {
           </a>
         </div>
 
-        <p className="absolute bottom-10 right-10 z-10 hidden max-w-[16ch] text-right font-mono text-xs text-neutral-600 sm:block">
+        <p
+          data-garden-clear
+          className="absolute bottom-10 right-10 z-10 hidden max-w-[16ch] text-right font-mono text-xs text-neutral-600 sm:block"
+        >
           Many projects, one root.
         </p>
       </section>

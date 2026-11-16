@@ -33,16 +33,9 @@ a {
   transform: rotate(90deg);
 }
 
-/* soft dawn sky behind the black pixel tree */
-.hero-sky {
-  background: linear-gradient(to bottom, #c9dbe6 0%, #e6ece9 55%, #f3ead8 100%);
-}
-
-.pixel-grid {
-  background-image:
-    linear-gradient(rgba(23, 23, 23, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 23, 23, 0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
+/* the ground of the ASCII garden: warm paper under black glyphs */
+.hero-garden {
+  background: radial-gradient(ellipse at 30% 20%, #f7f4ea 0%, #efeadb 70%, #e9e3d0 100%);
 }
 
 /* thin horizontal traces, like the tree's circuit roots */
