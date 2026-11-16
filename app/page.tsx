@@ -33,7 +33,7 @@ export default function Home() {
           Prefix Tree
         </h1>
 
-        <div className="min-h-[360px] flex-1 sm:hidden" />
+        <div data-garden-ground className="min-h-[380px] flex-1 sm:hidden" />
 
         <div className="relative z-10 m-4 rounded-2xl border border-white/60 bg-white/50 p-6 shadow-sm backdrop-blur-md sm:absolute sm:bottom-10 sm:left-10 sm:m-0 sm:max-w-sm">
           <h2 className="font-serif text-4xl leading-none text-neutral-900">
