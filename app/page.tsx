@@ -11,7 +11,11 @@ const notes = [
   },
   {
     title: "many-branches",
-    body: "Different products, different domains. The common root is how they are made.",
+    body: "Several products in different domains. The common root is how they are made.",
+  },
+  {
+    title: "open-source",
+    body: "Some branches are open-source projects: code anyone can read, use and build on.",
   },
   {
     title: "built-to-ship",
@@ -37,12 +41,12 @@ export default function Home() {
 
         <div className="relative z-10 m-4 rounded-2xl border border-white/60 bg-white/50 p-6 shadow-sm backdrop-blur-md sm:absolute sm:bottom-10 sm:left-10 sm:m-0 sm:max-w-sm">
           <h2 className="font-serif text-4xl leading-none text-neutral-900">
-            We craft products.
+            We grow software.
             <span className="cursor ml-1 inline-block h-[0.8em] w-[0.4em] translate-y-[0.05em] bg-neutral-900" />
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-neutral-700">
-            Prefix Tree is a small studio. We plant ideas we believe in and grow
-            them into things people actually use.
+            Prefix Tree is Local Group Software Corp. We work on several
+            products and open-source projects, each grown from one root.
           </p>
           <a
             href="#about"
@@ -67,8 +71,9 @@ export default function Home() {
         <p className="max-w-3xl font-serif text-4xl leading-tight text-neutral-900 md:text-5xl">
           The world is a big garden.{" "}
           <span className="text-neutral-400">
-            We plant new trees in it: products that take root, grow, and turn
-            out useful for people and good for society.
+            We plant new trees in it: products and open-source projects that
+            take root, grow, and turn out useful for people and good for
+            society.
           </span>
         </p>
 

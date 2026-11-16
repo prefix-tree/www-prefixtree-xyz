@@ -35,10 +35,10 @@ const mono = localFont({
 
 export const metadata: Metadata = {
   title: "Prefix Tree",
-  description: "We craft products.",
+  description: "Local Group Software Corp. We build products and open-source projects.",
   openGraph: {
     title: "Prefix Tree",
-    description: "We craft products.",
+    description: "Local Group Software Corp. We build products and open-source projects.",
     url: "https://prefixtree.xyz",
     siteName: "Prefix Tree",
     locale: "en_US",
@@ -96,7 +96,7 @@ export default function RootLayout({
                 {email}
               </a>
             </div>
-            <span>© {new Date().getFullYear()} Prefix Tree</span>
+            <span>© {new Date().getFullYear()} Local Group Software Corp</span>
           </div>
           <div className="stripes" />
         </footer>

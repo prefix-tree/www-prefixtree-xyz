@@ -182,8 +182,8 @@ function buildGarden(
       const lambert = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
       const k = 6 / Math.max(1, rx / 40);
       const leaves = fbm((x / rx) * k + seed, (y / rx) * k * 1.4, 11);
-      const val = 0.26 + 0.62 * (1 - lambert) + 0.55 * (leaves - 0.5);
-      put(i, j, FOLIAGE, a, "", Math.max(0.14, Math.min(1, val)), seed * 0.7 + fbm(i * 0.3, j * 0.3, 5) * 3);
+      const val = 0.36 + 0.6 * (1 - lambert) + 0.5 * (leaves - 0.5);
+      put(i, j, FOLIAGE, a, "", Math.max(0.2, Math.min(1, val)), seed * 0.7 + fbm(i * 0.3, j * 0.3, 5) * 3);
     });
   };
 
@@ -261,13 +261,13 @@ function buildGarden(
   // ---------- the garden's other trees ----------
   type Wild = { x: number; base: number; k: number; conifer: boolean; seed: number };
   const wild: Wild[] = [];
-  const want = Math.max(3, Math.round(w / 210));
+  const want = Math.max(2, Math.round(w / 300));
   for (let tries = 0; tries < 400 && wild.length < want; tries++) {
     const x = rand() * w;
     if (Math.abs(x - cx) < S * (mobile ? 0.4 : 0.5)) continue;
     const near = rand();
     const k = 0.55 + near * 0.75;
-    if (wild.some((t) => Math.abs(t.x - x) < 60 * (t.k + k))) continue;
+    if (wild.some((t) => Math.abs(t.x - x) < 90 * (t.k + k))) continue;
     wild.push({ x, base: y0 + near * (h - y0) * 0.22, k, conifer: rand() < 0.35, seed: Math.floor(rand() * 999) });
   }
   wild.sort((p, q) => p.base - q.base);
