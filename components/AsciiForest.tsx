@@ -3,20 +3,17 @@
 import { useEffect, useRef } from "react";
 
 /*
- * One big, old, friendly tree, drawn as a digital tree: wood as a grid of
- * characters, leaves as free strokes.
+ * A big old tree, a Japanese torii gate and an English red telephone box,
+ * drawn as ASCII in black on white.
  *
- * A thick trunk twists up from flaring roots and splits into four limbs (the
- * longest low to the left), which fork again and again. Their tips carry
- * clusters of leaves, light on top and dark underneath, the whole crown darker
- * away from the light at the top left, with gaps where the branches show. A
- * bush and tall grass grow at its foot.
- *
- * Leaves and grass are short strokes off the character grid and sway a little.
- * The wood is painted on a hidden canvas (outlines first, fills on top, so the
- * joints have no seams) and read as characters: edges become | / \ - by their
- * direction (a structure tensor on the full painting), tone becomes the
- * symbol of matching measured ink. The characters are drawn once.
+ * The tree comes from an illustration (public/hero-tree.webp); the torii,
+ * standing back to the left, and the telephone box, in front to the right, are
+ * drawn here as simple geometric forms. All three go onto one hidden canvas
+ * (the tree multiplied in, so its white background keeps what is behind it)
+ * and the canvas is read as characters: edges become | / \ - by their
+ * direction (a structure tensor on the full painting), tone becomes the symbol
+ * of matching measured ink. A line of grass along the ground is drawn as free
+ * strokes that sway. The characters are drawn once.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -90,26 +87,27 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: one big, old, friendly tree ----------
+// ---------- the painting: a big old tree, a torii gate and a red telephone box ----------
 
 type Label = { text: string; x: number; y: number };
 
-/** a leaf or a grass blade: a short free stroke, not on the character grid */
+/** a grass blade: a short free stroke, not on the character grid */
 type Stroke = { x: number; y: number; len: number; ang: number; alpha: number; sway: number };
 
 type Painting = {
-  /** ink per pixel of the hidden canvas (trunk, limbs, roots), 0 paper .. 1 black */
+  /** ink per pixel of the hidden canvas, 0 paper .. 1 black */
   ink: Float32Array;
   W: number;
   H: number;
   labels: Label[];
-  /** leaves and grass, drawn as strokes over the characters */
+  /** grass along the ground, drawn as strokes over the characters */
   strokes: Stroke[];
 };
 
-type Pt = { x: number; y: number };
+/** the tree illustration (public/hero-tree.webp): where its ground line sits, as a fraction of its height */
+const TREE_GROUND = 0.885;
 
-function paintForest(w: number, h: number, ground: number): Painting {
+function paintForest(w: number, h: number, ground: number, tree: HTMLImageElement | null): Painting {
   const W = Math.max(1, Math.round(w));
   const H = Math.max(1, Math.round(h));
   const c = document.createElement("canvas");
@@ -130,237 +128,135 @@ function paintForest(w: number, h: number, ground: number): Painting {
   g.lineJoin = "round";
   g.lineCap = "round";
 
-  // size and place: the tree is about as wide as it is tall, plus a little
-  const gy = ground * (mobile ? 0.95 : 0.94); // where it stands
-  const S = mobile ? Math.min(w * 0.68, (gy - 170) * 0.95) : Math.min(w * 0.46, (gy - 200) * 0.85);
-  const cx = w * (mobile ? 0.5 : 0.57);
+  const gy = ground * (mobile ? 0.95 : 0.94); // the ground line
+  const T = mobile ? Math.min(w * 0.82, (gy - 150) * 1.05) : Math.min(w * 0.5, (gy - 160) * 1.02); // tree size
+  const tx = w * (mobile ? 0.52 : 0.6);
 
-  // ---------- wood: every limb is a tapered polygon; outlines first, fills on top, so joints have no seams ----------
-  const wood: Path2D[] = [];
-  const limb = (a: Pt, ctrl: Pt, b: Pt, w0: number, w1: number) => {
-    const L: Pt[] = [];
-    const R: Pt[] = [];
-    const n = 18;
-    for (let s = 0; s <= n; s++) {
-      const t = s / n;
-      const u = 1 - t;
-      const p = {
-        x: u * u * a.x + 2 * u * t * ctrl.x + t * t * b.x,
-        y: u * u * a.y + 2 * u * t * ctrl.y + t * t * b.y,
-      };
-      const dx = 2 * u * (ctrl.x - a.x) + 2 * t * (b.x - ctrl.x);
-      const dy = 2 * u * (ctrl.y - a.y) + 2 * t * (b.y - ctrl.y);
-      const l = Math.hypot(dx, dy) || 1;
-      const wd = w0 + (w1 - w0) * t;
-      L.push({ x: p.x - (dy / l) * wd, y: p.y + (dx / l) * wd });
-      R.push({ x: p.x + (dy / l) * wd, y: p.y - (dx / l) * wd });
-    }
-    const path = new Path2D();
-    path.moveTo(L[0].x, L[0].y);
-    L.forEach((p) => path.lineTo(p.x, p.y));
-    R.reverse().forEach((p) => path.lineTo(p.x, p.y));
-    path.closePath();
-    wood.push(path);
-  };
-
-  // the trunk: thick, twisting, flaring into roots
-  const base = { x: cx - S * 0.02, y: gy };
-  const fork = { x: cx + S * 0.03, y: gy - S * 0.36 };
-  limb(base, { x: cx - S * 0.12, y: gy - S * 0.2 }, fork, S * 0.065, S * 0.045);
-  for (const [dx, dy, wd] of [
-    [-0.26, 0.01, 0.03],
-    [-0.13, 0.02, 0.025],
-    [0.2, 0.012, 0.028],
-    [0.33, 0.004, 0.016],
-  ] as const) {
-    const end = { x: base.x + dx * S, y: gy + dy * S };
-    limb(
-      { x: base.x + dx * S * 0.12, y: gy - S * 0.08 },
-      { x: base.x + dx * S * 0.45, y: gy - S * 0.005 },
-      end,
-      S * wd,
-      S * 0.004,
-    );
-  }
-
-  // limbs fork again and again; their tips carry the leaves
-  const tips: { x: number; y: number; r: number }[] = [];
-  const grow = (from: Pt, ang: number, len: number, wd: number, depth: number, leaves = true) => {
-    const to = { x: from.x + Math.cos(ang) * len, y: from.y + Math.sin(ang) * len };
-    const bend = (rand() - 0.5) * 1.1;
-    const mid = {
-      x: (from.x + to.x) / 2 + Math.cos(ang + Math.PI / 2) * len * bend * 0.3,
-      y: (from.y + to.y) / 2 + Math.sin(ang + Math.PI / 2) * len * bend * 0.3,
+  /** a torii: two pillars, a curved top beam with upturned ends, a tie beam, a central strut */
+  const torii = (x: number, base: number, s: number) => {
+    const fill = (path: () => void, ink: number) => {
+      g.beginPath();
+      path();
+      g.closePath();
+      g.fillStyle = grey(ink);
+      g.fill();
+      g.strokeStyle = grey(1);
+      g.lineWidth = line;
+      g.stroke();
     };
-    limb(from, mid, to, wd, wd * 0.62);
-    if (depth === 0 || wd < 1.2) {
-      if (leaves) tips.push({ x: to.x, y: to.y, r: S * (0.06 + rand() * 0.035) });
-      return;
+    const half = s * 0.36; // pillar spacing
+    const pw = s * 0.045;
+    const top = base - s * 0.86;
+    for (const side of [-1, 1]) {
+      const xb = x + side * half;
+      const xt = x + side * half * 0.92; // pillars lean in a little
+      fill(() => {
+        g.moveTo(xb - pw, base);
+        g.lineTo(xt - pw * 0.8, top);
+        g.lineTo(xt + pw * 0.8, top);
+        g.lineTo(xb + pw, base);
+      }, 0.62);
+      fill(() => g.rect(xb - pw * 1.5, base - s * 0.05, pw * 3, s * 0.05), 0.85); // the black foot
     }
-    if (depth <= 1 && leaves) tips.push({ x: mid.x, y: mid.y - len * 0.1, r: S * (0.05 + rand() * 0.03) });
-    const kids = 2 + (rand() < 0.4 ? 1 : 0);
-    for (let k = 0; k < kids; k++) {
-      const spread = (k / (kids - 1) - 0.5) * 1.1 + (rand() - 0.5) * 0.35;
-      // children lean toward the light: a little upward
-      let a = ang + spread;
-      a = a + (-Math.PI / 2 - a) * 0.18;
-      grow(to, a, len * (0.66 + rand() * 0.12), wd * 0.62, depth - 1, leaves);
-    }
+    // nuki: the tie beam, through the pillars
+    fill(() => g.rect(x - half * 1.28, top + s * 0.17, half * 2.56, s * 0.045), 0.58);
+    // gakuzuka: the central strut
+    fill(() => g.rect(x - pw * 0.7, top + s * 0.03, pw * 1.4, s * 0.14), 0.58);
+    // shimaki and kasagi: the top beams, the upper one sweeping up at the ends
+    fill(() => g.rect(x - half * 1.3, top - s * 0.01, half * 2.6, s * 0.045), 0.6);
+    fill(() => {
+      const L = half * 1.55;
+      g.moveTo(x - L, top - s * 0.12);
+      g.quadraticCurveTo(x, top - s * 0.03, x + L, top - s * 0.12);
+      g.lineTo(x + L * 0.93, top - s * 0.06);
+      g.quadraticCurveTo(x, top + s * 0.01, x - L * 0.93, top - s * 0.06);
+    }, 0.85);
   };
-  const deg = Math.PI / 180;
-  grow(fork, -168 * deg, S * 0.25, S * 0.03, 3); // the long low arm to the left
-  grow(fork, -118 * deg, S * 0.2, S * 0.034, 3);
-  grow(fork, -72 * deg, S * 0.19, S * 0.032, 3);
-  grow({ x: fork.x + S * 0.01, y: fork.y + S * 0.06 }, -22 * deg, S * 0.23, S * 0.026, 3);
-  // a bare twig low on the right, as old trees have
-  grow({ x: fork.x + S * 0.02, y: fork.y + S * 0.1 }, -8 * deg, S * 0.22, S * 0.012, 1, false);
 
-  g.strokeStyle = grey(1);
-  g.lineWidth = line * 2;
-  wood.forEach((p) => g.stroke(p));
-  const wg = g.createLinearGradient(cx - S * 0.4, 0, cx + S * 0.4, 0);
-  wg.addColorStop(0, grey(0.48));
-  wg.addColorStop(1, grey(0.22));
-  g.fillStyle = wg;
-  wood.forEach((p) => g.fill(p));
-  // bark: a few long fissures up the trunk
-  g.strokeStyle = grey(0.85);
-  g.lineWidth = Math.max(1, line * 0.7);
-  for (const f of [-0.35, 0.1, 0.45]) {
+  /** a red telephone box (K6): domed roof, sign band, glazing bars, a plinth */
+  const phoneBox = (x: number, base: number, s: number) => {
+    const bw = s * 0.36;
+    const bh = s;
+    const x0 = x - bw / 2;
+    const top = base - bh;
+    g.strokeStyle = grey(1);
+    g.lineWidth = line;
+    // plinth
+    g.fillStyle = grey(0.5);
+    g.fillRect(x0 - bw * 0.06, base - s * 0.035, bw * 1.12, s * 0.035);
+    g.strokeRect(x0 - bw * 0.06, base - s * 0.035, bw * 1.12, s * 0.035);
+    // body
+    const body = g.createLinearGradient(x0, 0, x0 + bw, 0);
+    body.addColorStop(0, grey(0.7));
+    body.addColorStop(1, grey(0.5));
+    g.fillStyle = body;
+    g.fillRect(x0, top + s * 0.1, bw, bh - s * 0.135);
+    g.strokeRect(x0, top + s * 0.1, bw, bh - s * 0.135);
+    // the domed roof
     g.beginPath();
-    for (let s = 0; s <= 20; s++) {
-      const t = s / 20;
-      const u = 1 - t;
-      const ctrl = { x: cx - S * 0.12, y: gy - S * 0.2 };
-      const x =
-        u * u * base.x + 2 * u * t * ctrl.x + t * t * fork.x + f * S * (0.06 - 0.02 * t) + Math.sin(t * 9 + f * 4) * 2;
-      const y = u * u * base.y + 2 * u * t * ctrl.y + t * t * fork.y;
-      if (s === 0) g.moveTo(x, y - S * 0.04);
-      else g.lineTo(x, y);
-    }
+    g.moveTo(x0 - bw * 0.04, top + s * 0.1);
+    g.quadraticCurveTo(x, top - s * 0.02, x0 + bw * 1.04, top + s * 0.1);
+    g.closePath();
+    g.fillStyle = grey(0.65);
+    g.fill();
     g.stroke();
+    // the TELEPHONE sign: a pale band
+    g.fillStyle = grey(0.08);
+    g.fillRect(x0 + bw * 0.12, top + s * 0.12, bw * 0.76, s * 0.05);
+    g.strokeRect(x0 + bw * 0.12, top + s * 0.12, bw * 0.76, s * 0.05);
+    // the door's glazing: small panes in three columns
+    const gx0 = x0 + bw * 0.14;
+    const gw = bw * 0.72;
+    const gy0 = top + s * 0.21;
+    const gh = s * 0.56;
+    const cols = 3;
+    const rows = 8;
+    const pane = { w: gw / cols, h: gh / rows };
+    g.fillStyle = "#fff";
+    for (let r = 0; r < rows; r++)
+      for (let k = 0; k < cols; k++) {
+        const px = gx0 + k * pane.w + pane.w * 0.14;
+        const py = gy0 + r * pane.h + pane.h * 0.14;
+        g.fillRect(px, py, pane.w * 0.72, pane.h * 0.72);
+      }
+    g.strokeRect(gx0, gy0, gw, gh);
+  };
+
+  // behind: the torii, a little further back, to the left of the tree
+  const toriiS = mobile ? T * 0.3 : T * 0.27;
+  torii(mobile ? w * 0.16 : Math.max(w * 0.36, tx - T * 0.42), gy - T * 0.015, toriiS);
+
+  // the tree, from the illustration: multiplied in, so its white background leaves what is behind
+  if (tree && tree.naturalWidth) {
+    const ih = T;
+    const iw = (tree.naturalWidth / tree.naturalHeight) * ih;
+    g.globalCompositeOperation = "multiply";
+    g.drawImage(tree, tx - iw / 2, gy - ih * TREE_GROUND, iw, ih);
+    g.globalCompositeOperation = "source-over";
   }
 
-  // ---------- the crown: a dome of leaf clusters, with gaps low down where the branches show ----------
-  {
-    const dc = { x: fork.x - S * 0.02, y: fork.y - S * 0.36 };
-    const drx = S * 0.6;
-    const dry = S * 0.36;
-    const cell = S * 0.075;
-    for (let y = dc.y - dry; y < dc.y + dry * 0.8; y += cell * 0.8) {
-      for (let x = dc.x - drx; x < dc.x + drx; x += cell) {
-        const px = x + (rand() - 0.5) * cell;
-        const py = y + (rand() - 0.5) * cell * 0.8;
-        const u = (px - dc.x) / drx;
-        const v = (py - dc.y) / dry;
-        const edge = 1 + 0.12 * Math.sin(Math.atan2(v, u) * 7);
-        if (u * u + v * v > edge * edge) continue;
-        // the lower part of the crown opens up, so the limbs show through
-        if (v > 0.15 && rand() < 0.35 + v * 0.6) continue;
-        tips.push({ x: px, y: py, r: S * (0.055 + rand() * 0.03) });
-      }
-    }
-  }
+  // in front: the red telephone box, to the right
+  phoneBox(mobile ? w * 0.89 : Math.min(w * 0.9, tx + T * 0.5), gy + T * 0.01, mobile ? T * 0.3 : T * 0.3);
 
-  // ---------- leaves: clusters of short strokes, lit from the top left ----------
-  const crown = tips.reduce(
-    (b, t) => ({ x0: Math.min(b.x0, t.x), x1: Math.max(b.x1, t.x), y0: Math.min(b.y0, t.y), y1: Math.max(b.y1, t.y) }),
-    {
-      x0: Infinity,
-      x1: -Infinity,
-      y0: Infinity,
-      y1: -Infinity,
-    },
-  );
-  const ccx = (crown.x0 + crown.x1) / 2;
-  const ccy = (crown.y0 + crown.y1) / 2;
-  const leaf = Math.max(3, S / 95);
-  const step = leaf * 0.85;
-  for (const t of tips) {
-    const r = mulberry32(Math.round(t.x * 13 + t.y));
-    for (let y = t.y - t.r; y < t.y + t.r * 0.7; y += step) {
-      for (let x = t.x - t.r; x < t.x + t.r; x += step) {
-        const lx = x + (r() - 0.5) * step;
-        const ly = y + (r() - 0.5) * step;
-        const u = (lx - t.x) / t.r;
-        const v = (ly - t.y) / t.r;
-        const edge = 1 + 0.18 * Math.sin(Math.atan2(v, u) * 6 + t.x);
-        if (u * u + (v < 0 ? v * v : (v / 0.7) ** 2) > edge * edge) continue;
-        const low = (v + 1) / 1.7; // 0 top .. 1 underside of the cluster
-        if (r() > 0.4 + 0.5 * low) continue;
-        // the whole crown is darker to the bottom right, away from the light
-        const away = 0.18 * ((lx - ccx) / (crown.x1 - crown.x0 + 1) + (ly - ccy) / (crown.y1 - crown.y0 + 1));
-        strokes.push({
-          x: lx,
-          y: ly,
-          len: leaf * (0.65 + r() * 0.6),
-          ang: r() * Math.PI,
-          alpha: Math.min(1, Math.max(0.2, 0.25 + 0.6 * low + away)),
-          sway: 0.05,
-        });
-      }
-    }
-  }
-
-  // ---------- at its foot: a bush on the right, tall grass on the left ----------
-  for (let k = 0; k < 4; k++) {
-    const bx = cx + S * (0.2 + k * 0.07);
-    const by = gy - S * (0.05 + (k % 2) * 0.02);
-    const br = S * (0.06 + (k === 1 ? 0.02 : 0));
-    for (let y = by - br; y < by + br * 0.6; y += step) {
-      for (let x = bx - br; x < bx + br; x += step) {
-        const u = (x - bx) / br;
-        const v = (y - by) / br;
-        if (u * u + v * v > 1 || rand() > 0.5 + 0.4 * ((v + 1) / 2)) continue;
-        strokes.push({
-          x,
-          y,
-          len: leaf * (0.6 + rand() * 0.5),
-          ang: rand() * Math.PI,
-          alpha: 0.4 + 0.5 * ((v + 1) / 2),
-          sway: 0.03,
-        });
-      }
-    }
-  }
-  for (let k = 0; k < (mobile ? 9 : 14); k++) {
-    const x0 = cx - S * (0.18 + rand() * 0.16);
-    const len = S * (0.08 + rand() * 0.1);
-    const lean = (rand() - 0.6) * 1.4;
-    const segs = 6;
-    let p = { x: x0, y: gy };
-    for (let s = 1; s <= segs; s++) {
-      const t = s / segs;
-      const a = -Math.PI / 2 + lean * t * t;
-      const q = { x: p.x + Math.cos(a) * (len / segs), y: p.y + Math.sin(a) * (len / segs) };
-      strokes.push({
-        x: (p.x + q.x) / 2,
-        y: (p.y + q.y) / 2,
-        len: len / segs + 1,
-        ang: a,
-        alpha: 0.55 + 0.3 * (1 - t),
-        sway: 0.06 * t,
-      });
-      p = q;
-    }
-  }
-  // the ground: a soft line of short grass
-  for (let x = cx - S * 0.45; x < cx + S * 0.55; x += 2.5) {
-    const fade = 1 - Math.abs((x - cx) / (S * 0.5)) ** 2;
-    if (fade <= 0 || rand() > fade) continue;
+  // the ground: a soft line of grass running between them
+  for (let x = w * (mobile ? 0 : 0.27); x < w * (mobile ? 1 : 0.95); x += 2.5) {
+    if (rand() < 0.3) continue;
     strokes.push({
       x,
-      y: gy + 1 - rand() * 3,
-      len: 2.5 + rand() * 3,
+      y: gy + 2 - rand() * 4,
+      len: 2.5 + rand() * 4,
       ang: -Math.PI / 2 + (rand() - 0.5) * 1.2,
-      alpha: 0.6,
-      sway: 0.02,
+      alpha: 0.5 + rand() * 0.3,
+      sway: 0.04,
     });
   }
 
   const data = g.getImageData(0, 0, W, H).data;
   const ink = new Float32Array(W * H);
-  for (let p = 0; p < W * H; p++) ink[p] = 1 - data[p * 4] / 255;
+  for (let p = 0; p < W * H; p++) {
+    const v = 1 - (0.3 * data[p * 4] + 0.59 * data[p * 4 + 1] + 0.11 * data[p * 4 + 2]) / 255;
+    ink[p] = v < 0.08 ? 0 : v; // the illustration's near-white stays paper
+  }
   return { ink, W, H, labels: [], strokes };
 }
 
@@ -531,7 +427,7 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
       const ground =
         groundEl && groundEl.offsetParent !== null ? groundEl.getBoundingClientRect().bottom - rect.top : h;
 
-      cells = readCells(paintForest(w, h, ground), w, h, cw, ch, clearings);
+      cells = readCells(paintForest(w, h, ground, tree), w, h, cw, ch, clearings);
       still = drawStill(cells, ink, atlas);
       draw(performance.now());
     };
@@ -547,11 +443,12 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
         for (let i = 0; i < c.cols; i++) {
           const k = j * c.cols + i;
           if (c.clear[k]) continue;
-          const v = 0.95 * c.tone[k] ** 1.3; // paper should dominate, as in an etching
+          const v = c.tone[k] ** 1.15;
           const e = c.edge[k];
           if (v < 0.03 && !e) continue;
           const ci = e ? (ink.index.get(e) ?? 0) : ink.lut[Math.min(63, Math.round(v * 63))];
           if (ci === 0) continue;
+          o.globalAlpha = Math.min(1, 0.35 + c.tone[k]); // light tones in light ink
           o.drawImage(atlas, ci * cwD, 0, cwD, chD, Math.round(i * c.cw * dpr), Math.round(j * c.ch * dpr), cwD, chD);
         }
       }
@@ -622,6 +519,10 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
     });
     io.observe(canvas);
 
+    // the tree illustration: draw without it at first, again once it has loaded
+    const tree = new Image();
+    tree.src = "/hero-tree.webp";
+    tree.decode().then(setup, () => {});
     document.fonts?.ready.then(setup);
     setup();
     if (!reduced) raf = requestAnimationFrame(loop);
