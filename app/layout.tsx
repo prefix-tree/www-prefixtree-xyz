@@ -35,10 +35,10 @@ const mono = localFont({
 
 export const metadata: Metadata = {
   title: "Prefix Tree",
-  description: "We craft products.",
+  description: "Local Group Software Corp. We build products and open-source projects.",
   openGraph: {
     title: "Prefix Tree",
-    description: "We craft products.",
+    description: "Local Group Software Corp. We build products and open-source projects.",
     url: "https://prefixtree.xyz",
     siteName: "Prefix Tree",
     locale: "en_US",
@@ -59,8 +59,8 @@ export default function RootLayout({
         className={`${serif.variable} ${pixel.variable} ${sans.variable} ${mono.variable} font-sans antialiased overflow-x-hidden`}
       >
         {/* ---------- FLOATING NAV ---------- */}
-        <header className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-          <nav className="flex items-center gap-1 rounded-xl border border-white/70 bg-white/60 p-1.5 text-sm text-neutral-800 shadow-sm backdrop-blur-md">
+        <header className="fixed inset-x-0 top-4 z-50 flex justify-center px-2 sm:px-4">
+          <nav className="flex items-center gap-0.5 whitespace-nowrap rounded-xl sm:gap-1 border border-white/70 bg-white/60 p-1 text-[13px] text-neutral-800 sm:p-1.5 sm:text-sm shadow-sm backdrop-blur-md">
             <Link
               href="/"
               aria-label="Prefix Tree home"
@@ -68,12 +68,22 @@ export default function RootLayout({
             >
               <TreeMark className="h-5 w-5" />
             </Link>
-            <Link href="/#about" className="rounded-lg px-3 py-1.5 hover:bg-black/5">
+            <Link href="/#mission" className="rounded-lg px-2 py-1.5 hover:bg-black/5 sm:px-3">
+              Mission
+            </Link>
+            {/* the narrowest phones drop About; it is the next section after Mission */}
+            <Link
+              href="/#about"
+              className="rounded-lg px-2 py-1.5 hover:bg-black/5 max-[359px]:hidden sm:px-3"
+            >
               About
+            </Link>
+            <Link href="/#projects" className="rounded-lg px-2 py-1.5 hover:bg-black/5 sm:px-3">
+              Projects
             </Link>
             <a
               href={`mailto:${email}`}
-              className="ml-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-white hover:bg-neutral-700"
+              className="ml-1 rounded-lg bg-neutral-900 px-2.5 py-1.5 sm:px-3 text-white hover:bg-neutral-700"
             >
               Get in touch
             </a>
@@ -96,7 +106,7 @@ export default function RootLayout({
                 {email}
               </a>
             </div>
-            <span>© {new Date().getFullYear()} Prefix Tree</span>
+            <span>© {new Date().getFullYear()} Local Group Software Corp</span>
           </div>
           <div className="stripes" />
         </footer>

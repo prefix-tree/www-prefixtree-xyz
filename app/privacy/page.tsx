@@ -2,8 +2,8 @@ import React from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | PRFX",
-  description: "Privacy Policy for Prefix Tree Limited",
+  title: "Privacy Policy | Prefix Tree",
+  description: "Privacy Policy for Local Group Software Corp",
 };
 
 const email = "partners@prefixtree.xyz";
@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
           Privacy Policy
         </h1>
         <p className="text-lg leading-relaxed">
-          At Prefix Tree Limited (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;), we are committed to protecting and respecting your privacy. This Privacy Policy outlines how we collect, use, store, and protect your personal data when you interact with us — including through our website, services, and client communications.
+          At Local Group Software Corp (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;), we are committed to protecting and respecting your privacy. This Privacy Policy outlines how we collect, use, store, and protect your personal data when you interact with us — including through our website, services, and client communications.
         </p>
       </div>
 
@@ -134,7 +134,7 @@ export default function PrivacyPolicy() {
             If you have any questions about this Privacy Policy or how we handle your data, please contact:
           </p>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="font-semibold">Prefix Tree Limited</p>
+            <p className="font-semibold">Local Group Software Corp</p>
             <p>Email: <a href={`mailto:${email}`} className="text-blue-600 hover:underline">{email}</a></p>
           </div>
         </section>
