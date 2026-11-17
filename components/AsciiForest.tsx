@@ -3,21 +3,20 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A pine bonsai in black on white: needles as free strokes, the rest as a
- * grid of characters.
+ * One big, old, friendly tree, drawn as a digital tree: wood as a grid of
+ * characters, leaves as free strokes.
  *
- * One tree has the stage: an informal upright pine with an S-curved, tapering
- * trunk and surface roots, six branches alternating up the trunk (the lowest
- * and longest on the left) and an apex, each carrying a pad of foliage with a
- * domed top and a flat underside. Needles grow in small fanned tufts, open and
- * light on top, close and dark underneath. A shallow pot on two feet, moss on
- * the soil, a pale sun behind.
+ * A thick trunk twists up from flaring roots and splits into four limbs (the
+ * longest low to the left), which fork again and again. Their tips carry
+ * clusters of leaves, light on top and dark underneath, the whole crown darker
+ * away from the light at the top left, with gaps where the branches show. A
+ * bush and tall grass grow at its foot.
  *
- * Needles and moss are short strokes off the character grid and sway a little.
- * The trunk, branches, pot and sun are painted on a hidden canvas and read as
- * characters: edges become | / \ - by their direction (a structure tensor on
- * the full painting), tone becomes the symbol of matching measured ink. The
- * characters are drawn once.
+ * Leaves and grass are short strokes off the character grid and sway a little.
+ * The wood is painted on a hidden canvas (outlines first, fills on top, so the
+ * joints have no seams) and read as characters: edges become | / \ - by their
+ * direction (a structure tensor on the full painting), tone becomes the
+ * symbol of matching measured ink. The characters are drawn once.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -91,22 +90,24 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: a pine bonsai ----------
+// ---------- the painting: one big, old, friendly tree ----------
 
 type Label = { text: string; x: number; y: number };
 
-/** a needle: a short free stroke, not on the character grid */
+/** a leaf or a grass blade: a short free stroke, not on the character grid */
 type Stroke = { x: number; y: number; len: number; ang: number; alpha: number; sway: number };
 
 type Painting = {
-  /** ink per pixel of the hidden canvas (trunk, branches, pot, sun), 0 paper .. 1 black */
+  /** ink per pixel of the hidden canvas (trunk, limbs, roots), 0 paper .. 1 black */
   ink: Float32Array;
   W: number;
   H: number;
   labels: Label[];
-  /** needles and moss, drawn as strokes over the characters */
+  /** leaves and grass, drawn as strokes over the characters */
   strokes: Stroke[];
 };
+
+type Pt = { x: number; y: number };
 
 function paintForest(w: number, h: number, ground: number): Painting {
   const W = Math.max(1, Math.round(w));
@@ -118,7 +119,7 @@ function paintForest(w: number, h: number, ground: number): Painting {
   g.fillStyle = "#fff";
   g.fillRect(0, 0, w, h);
 
-  const rand = mulberry32(8);
+  const rand = mulberry32(5);
   const mobile = w < 640;
   const grey = (ink: number) => {
     const v = Math.round(255 * (1 - Math.max(0, Math.min(1, ink))));
@@ -129,235 +130,231 @@ function paintForest(w: number, h: number, ground: number): Painting {
   g.lineJoin = "round";
   g.lineCap = "round";
 
-  // size and place: the tree has the stage to itself
-  const y0 = ground * (mobile ? 0.94 : 0.93); // the pot stands here
-  const S = mobile ? Math.min(w * 0.95, (y0 - 160) * 0.92) : Math.min(w * 0.5, (y0 - 170) * 0.9);
-  const cx = w * (mobile ? 0.5 : 0.56);
-  const potW = S * 0.72;
-  const potH = S * 0.11;
-  const soil = y0 - potH;
+  // size and place: the tree is about as wide as it is tall, plus a little
+  const gy = ground * (mobile ? 0.95 : 0.94); // where it stands
+  const S = mobile ? Math.min(w * 0.68, (gy - 170) * 0.95) : Math.min(w * 0.46, (gy - 200) * 0.85);
+  const cx = w * (mobile ? 0.5 : 0.57);
 
-  // a pale sun behind the tree
-  g.beginPath();
-  g.arc(cx + S * 0.1, soil - S * 0.62, S * 0.36, 0, Math.PI * 2);
-  g.fillStyle = grey(0.07);
-  g.fill();
-
-  // ---------- the pot: shallow, rectangular, on two feet ----------
-  const px0 = cx - potW / 2;
-  g.strokeStyle = grey(1);
-  g.lineWidth = line;
-  for (const fx of [0.14, 0.86]) {
-    g.fillStyle = grey(0.5);
-    g.fillRect(px0 + potW * fx - S * 0.03, y0 - S * 0.005, S * 0.06, S * 0.025);
-    g.strokeRect(px0 + potW * fx - S * 0.03, y0 - S * 0.005, S * 0.06, S * 0.025);
-  }
-  g.beginPath();
-  g.moveTo(px0, soil);
-  g.lineTo(px0 + potW, soil);
-  g.lineTo(px0 + potW - S * 0.035, y0);
-  g.lineTo(px0 + S * 0.035, y0);
-  g.closePath();
-  const pg = g.createLinearGradient(px0, 0, px0 + potW, 0);
-  pg.addColorStop(0, grey(0.42));
-  pg.addColorStop(0.7, grey(0.3));
-  pg.addColorStop(1, grey(0.18));
-  g.fillStyle = pg;
-  g.fill();
-  g.stroke();
-  // the rim
-  g.fillStyle = grey(0.5);
-  g.fillRect(px0 - S * 0.012, soil - S * 0.018, potW + S * 0.024, S * 0.022);
-  g.strokeRect(px0 - S * 0.012, soil - S * 0.018, potW + S * 0.024, S * 0.022);
-  // a soft shadow under it
-  g.beginPath();
-  g.ellipse(cx + S * 0.03, y0 + S * 0.03, potW * 0.62, S * 0.018, 0, 0, Math.PI * 2);
-  g.fillStyle = grey(0.12);
-  g.fill();
-
-  // ---------- the trunk: an S-curve, tapering, with surface roots ----------
-  const P = [
-    { x: cx - S * 0.05, y: soil - S * 0.01 },
-    { x: cx + S * 0.16, y: soil - S * 0.24 },
-    { x: cx - S * 0.2, y: soil - S * 0.48 },
-    { x: cx + S * 0.03, y: soil - S * 0.86 },
-  ];
-  const at = (t: number) => {
-    const u = 1 - t;
-    return {
-      x: u * u * u * P[0].x + 3 * u * u * t * P[1].x + 3 * u * t * t * P[2].x + t * t * t * P[3].x,
-      y: u * u * u * P[0].y + 3 * u * u * t * P[1].y + 3 * u * t * t * P[2].y + t * t * t * P[3].y,
-    };
+  // ---------- wood: every limb is a tapered polygon; outlines first, fills on top, so joints have no seams ----------
+  const wood: Path2D[] = [];
+  const limb = (a: Pt, ctrl: Pt, b: Pt, w0: number, w1: number) => {
+    const L: Pt[] = [];
+    const R: Pt[] = [];
+    const n = 18;
+    for (let s = 0; s <= n; s++) {
+      const t = s / n;
+      const u = 1 - t;
+      const p = {
+        x: u * u * a.x + 2 * u * t * ctrl.x + t * t * b.x,
+        y: u * u * a.y + 2 * u * t * ctrl.y + t * t * b.y,
+      };
+      const dx = 2 * u * (ctrl.x - a.x) + 2 * t * (b.x - ctrl.x);
+      const dy = 2 * u * (ctrl.y - a.y) + 2 * t * (b.y - ctrl.y);
+      const l = Math.hypot(dx, dy) || 1;
+      const wd = w0 + (w1 - w0) * t;
+      L.push({ x: p.x - (dy / l) * wd, y: p.y + (dx / l) * wd });
+      R.push({ x: p.x + (dy / l) * wd, y: p.y - (dx / l) * wd });
+    }
+    const path = new Path2D();
+    path.moveTo(L[0].x, L[0].y);
+    L.forEach((p) => path.lineTo(p.x, p.y));
+    R.reverse().forEach((p) => path.lineTo(p.x, p.y));
+    path.closePath();
+    wood.push(path);
   };
-  const w0 = S * 0.07;
-  const w1 = S * 0.01;
-  const left: { x: number; y: number }[] = [];
-  const right: { x: number; y: number }[] = [];
-  for (let s = 0; s <= 40; s++) {
-    const t = s / 40;
-    const p = at(t);
-    const q = at(Math.min(1, t + 0.01));
-    const p0 = at(Math.max(0, t - 0.01));
-    const l = Math.hypot(q.x - p0.x, q.y - p0.y) || 1;
-    const nx = -(q.y - p0.y) / l;
-    const ny = (q.x - p0.x) / l;
-    const wd = w1 + (w0 - w1) * (1 - t) ** 1.3 + (t < 0.07 ? ((0.07 - t) / 0.07) ** 2 * S * 0.06 : 0);
-    left.push({ x: p.x - nx * wd, y: p.y - ny * wd });
-    right.push({ x: p.x + nx * wd, y: p.y + ny * wd });
-  }
-  // surface roots (nebari) spreading over the soil
-  for (const [dx, len] of [
-    [-1, 0.2],
-    [1, 0.17],
-    [-1, 0.1],
+
+  // the trunk: thick, twisting, flaring into roots
+  const base = { x: cx - S * 0.02, y: gy };
+  const fork = { x: cx + S * 0.03, y: gy - S * 0.36 };
+  limb(base, { x: cx - S * 0.12, y: gy - S * 0.2 }, fork, S * 0.065, S * 0.045);
+  for (const [dx, dy, wd] of [
+    [-0.26, 0.01, 0.03],
+    [-0.13, 0.02, 0.025],
+    [0.2, 0.012, 0.028],
+    [0.33, 0.004, 0.016],
   ] as const) {
-    g.beginPath();
-    g.moveTo(P[0].x + dx * w0 * 0.6, soil - S * 0.03);
-    g.quadraticCurveTo(P[0].x + dx * S * len * 0.5, soil - S * 0.005, P[0].x + dx * S * len, soil);
-    g.lineTo(P[0].x + dx * w0 * 0.2, soil);
-    g.closePath();
-    g.fillStyle = grey(0.45);
-    g.fill();
-    g.strokeStyle = grey(1);
-    g.lineWidth = line;
-    g.stroke();
+    const end = { x: base.x + dx * S, y: gy + dy * S };
+    limb(
+      { x: base.x + dx * S * 0.12, y: gy - S * 0.08 },
+      { x: base.x + dx * S * 0.45, y: gy - S * 0.005 },
+      end,
+      S * wd,
+      S * 0.004,
+    );
   }
-  g.beginPath();
-  left.forEach((p, s) => (s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
-  [...right].reverse().forEach((p) => g.lineTo(p.x, p.y));
-  g.closePath();
-  const tg = g.createLinearGradient(cx - S * 0.2, 0, cx + S * 0.2, 0);
-  tg.addColorStop(0, grey(0.5));
-  tg.addColorStop(1, grey(0.22));
-  g.fillStyle = tg;
-  g.fill();
+
+  // limbs fork again and again; their tips carry the leaves
+  const tips: { x: number; y: number; r: number }[] = [];
+  const grow = (from: Pt, ang: number, len: number, wd: number, depth: number, leaves = true) => {
+    const to = { x: from.x + Math.cos(ang) * len, y: from.y + Math.sin(ang) * len };
+    const bend = (rand() - 0.5) * 1.1;
+    const mid = {
+      x: (from.x + to.x) / 2 + Math.cos(ang + Math.PI / 2) * len * bend * 0.3,
+      y: (from.y + to.y) / 2 + Math.sin(ang + Math.PI / 2) * len * bend * 0.3,
+    };
+    limb(from, mid, to, wd, wd * 0.62);
+    if (depth === 0 || wd < 1.2) {
+      if (leaves) tips.push({ x: to.x, y: to.y, r: S * (0.06 + rand() * 0.035) });
+      return;
+    }
+    if (depth <= 1 && leaves) tips.push({ x: mid.x, y: mid.y - len * 0.1, r: S * (0.05 + rand() * 0.03) });
+    const kids = 2 + (rand() < 0.4 ? 1 : 0);
+    for (let k = 0; k < kids; k++) {
+      const spread = (k / (kids - 1) - 0.5) * 1.1 + (rand() - 0.5) * 0.35;
+      // children lean toward the light: a little upward
+      let a = ang + spread;
+      a = a + (-Math.PI / 2 - a) * 0.18;
+      grow(to, a, len * (0.66 + rand() * 0.12), wd * 0.62, depth - 1, leaves);
+    }
+  };
+  const deg = Math.PI / 180;
+  grow(fork, -168 * deg, S * 0.25, S * 0.03, 3); // the long low arm to the left
+  grow(fork, -118 * deg, S * 0.2, S * 0.034, 3);
+  grow(fork, -72 * deg, S * 0.19, S * 0.032, 3);
+  grow({ x: fork.x + S * 0.01, y: fork.y + S * 0.06 }, -22 * deg, S * 0.23, S * 0.026, 3);
+  // a bare twig low on the right, as old trees have
+  grow({ x: fork.x + S * 0.02, y: fork.y + S * 0.1 }, -8 * deg, S * 0.22, S * 0.012, 1, false);
+
   g.strokeStyle = grey(1);
-  g.lineWidth = line;
-  g.stroke();
-  // bark: a few long fissures following the trunk
-  g.lineWidth = Math.max(1, line * 0.7);
+  g.lineWidth = line * 2;
+  wood.forEach((p) => g.stroke(p));
+  const wg = g.createLinearGradient(cx - S * 0.4, 0, cx + S * 0.4, 0);
+  wg.addColorStop(0, grey(0.48));
+  wg.addColorStop(1, grey(0.22));
+  g.fillStyle = wg;
+  wood.forEach((p) => g.fill(p));
+  // bark: a few long fissures up the trunk
   g.strokeStyle = grey(0.85);
-  for (const f of [-0.45, 0, 0.4]) {
+  g.lineWidth = Math.max(1, line * 0.7);
+  for (const f of [-0.35, 0.1, 0.45]) {
     g.beginPath();
-    for (let s = 2; s <= 34; s++) {
-      const a = left[s];
-      const b = right[s];
-      const x = a.x + (b.x - a.x) * (0.5 + f * 0.5) + Math.sin(s * 1.3 + f * 5) * 1.5;
-      const y = a.y + (b.y - a.y) * (0.5 + f * 0.5);
-      if (s === 2) g.moveTo(x, y);
+    for (let s = 0; s <= 20; s++) {
+      const t = s / 20;
+      const u = 1 - t;
+      const ctrl = { x: cx - S * 0.12, y: gy - S * 0.2 };
+      const x =
+        u * u * base.x + 2 * u * t * ctrl.x + t * t * fork.x + f * S * (0.06 - 0.02 * t) + Math.sin(t * 9 + f * 4) * 2;
+      const y = u * u * base.y + 2 * u * t * ctrl.y + t * t * fork.y;
+      if (s === 0) g.moveTo(x, y - S * 0.04);
       else g.lineTo(x, y);
     }
     g.stroke();
   }
 
-  // ---------- branches and their pads of needles ----------
-  const len0 = Math.max(3.2, S / 70); // needle length
-  /** a pad: overlapping clouds with a domed top and a flat underside, filled with tufts of needles */
-  const pad = (cx0: number, cy0: number, rx: number, ry: number, seed: number) => {
-    const r = mulberry32(seed);
-    const clouds = [
-      { x: cx0 - rx * 0.45, y: cy0 + ry * 0.12, rx: rx * 0.6, ry: ry * 0.85 },
-      { x: cx0 + rx * 0.05, y: cy0 - ry * 0.1, rx: rx * 0.62, ry: ry },
-      { x: cx0 + rx * 0.5, y: cy0 + ry * 0.1, rx: rx * 0.55, ry: ry * 0.8 },
-    ];
-    const inside = (x: number, y: number) => {
-      for (const k of clouds) {
-        const u = (x - k.x) / k.rx;
-        if (Math.abs(u) >= 1) continue;
-        const s = Math.sqrt(1 - u * u);
-        const top = k.y - k.ry * s * (1 + 0.12 * Math.sin(u * 7 + seed));
-        const bottom = k.y + k.ry * 0.45 * s;
-        if (y > top && y < bottom) return { v: (y - top) / (bottom - top), u: (x - cx0) / rx };
-      }
-      return null;
-    };
-    const step = len0 * 0.75;
-    for (let y = cy0 - ry * 1.3; y < cy0 + ry * 0.6; y += step) {
-      for (let x = cx0 - rx * 1.1; x < cx0 + rx * 1.1; x += step) {
-        const tx = x + (r() - 0.5) * step;
-        const ty = y + (r() - 0.5) * step;
-        const hit = inside(tx, ty);
-        if (!hit) continue;
-        const { v, u } = hit;
-        // the top is lit and open, the underside dark and close
-        if (r() > 0.62 + 0.38 * v) continue;
-        const shade = Math.min(1, 0.28 + 0.66 * v ** 1.2 + 0.1 * Math.max(0, -u));
-        // a tuft: needles fanning up from one point
-        const n = 4 + Math.floor(r() * 3);
-        const base = -Math.PI / 2 + u * 0.35 + (r() - 0.5) * 0.4;
-        for (let q = 0; q < n; q++) {
-          const a = base + (q / (n - 1) - 0.5) * 1.7;
-          const L = len0 * (0.75 + r() * 0.45);
-          strokes.push({
-            x: tx + Math.cos(a) * L * 0.5,
-            y: ty + Math.sin(a) * L * 0.5,
-            len: L,
-            ang: a,
-            alpha: shade,
-            sway: 0.025,
-          });
-        }
+  // ---------- the crown: a dome of leaf clusters, with gaps low down where the branches show ----------
+  {
+    const dc = { x: fork.x - S * 0.02, y: fork.y - S * 0.36 };
+    const drx = S * 0.6;
+    const dry = S * 0.36;
+    const cell = S * 0.075;
+    for (let y = dc.y - dry; y < dc.y + dry * 0.8; y += cell * 0.8) {
+      for (let x = dc.x - drx; x < dc.x + drx; x += cell) {
+        const px = x + (rand() - 0.5) * cell;
+        const py = y + (rand() - 0.5) * cell * 0.8;
+        const u = (px - dc.x) / drx;
+        const v = (py - dc.y) / dry;
+        const edge = 1 + 0.12 * Math.sin(Math.atan2(v, u) * 7);
+        if (u * u + v * v > edge * edge) continue;
+        // the lower part of the crown opens up, so the limbs show through
+        if (v > 0.15 && rand() < 0.35 + v * 0.6) continue;
+        tips.push({ x: px, y: py, r: S * (0.055 + rand() * 0.03) });
       }
     }
-    // the underside: a fine dark edge
-    for (const k of clouds) {
-      for (let x = k.x - k.rx * 0.9; x < k.x + k.rx * 0.9; x += len0 * 0.7) {
-        const u = (x - k.x) / k.rx;
-        const y = k.y + k.ry * 0.45 * Math.sqrt(1 - u * u);
-        if (inside(x, y + 2)) continue; // only where it is the true underside
-        strokes.push({ x, y: y - 1, len: len0 * 0.9, ang: (r() - 0.5) * 0.4, alpha: 0.75, sway: 0.025 });
-      }
-    }
-  };
-  const branches = [
-    { t: 0.3, side: -1, reach: 0.44, rise: 0.03 },
-    { t: 0.42, side: 1, reach: 0.34, rise: 0.05 },
-    { t: 0.55, side: -1, reach: 0.3, rise: 0.05 },
-    { t: 0.66, side: 1, reach: 0.27, rise: 0.06 },
-    { t: 0.77, side: -1, reach: 0.2, rise: 0.05 },
-    { t: 0.87, side: 1, reach: 0.16, rise: 0.05 },
-  ];
-  branches.forEach((b, k) => {
-    const p = at(b.t);
-    const end = { x: p.x + b.side * S * b.reach, y: p.y - S * b.rise };
-    const bw = Math.max(1.5, w0 * 0.55 * (1 - b.t * 0.7));
-    // out and slightly down, then lifting at the tip
-    g.strokeStyle = grey(0.62);
-    for (const [wd, from, to] of [
-      [bw, 0, 0.5],
-      [bw * 0.6, 0.45, 1],
-    ] as const) {
-      const pt = (t: number) => {
-        const cxq = p.x + b.side * S * b.reach * 0.55;
-        const cyq = p.y + S * 0.03;
-        const u = 1 - t;
-        return { x: u * u * p.x + 2 * u * t * cxq + t * t * end.x, y: u * u * p.y + 2 * u * t * cyq + t * t * end.y };
-      };
-      g.lineWidth = wd;
-      g.beginPath();
-      for (let s = 0; s <= 10; s++) {
-        const q = pt(from + ((to - from) * s) / 10);
-        if (s === 0) g.moveTo(q.x, q.y);
-        else g.lineTo(q.x, q.y);
-      }
-      g.stroke();
-    }
-    const rx = S * (0.11 + 0.13 * (1 - b.t));
-    pad(end.x - b.side * rx * 0.3, end.y - rx * 0.1, rx, rx * 0.5, 40 + k * 13);
-  });
-  const top = at(1);
-  pad(top.x, top.y - S * 0.035, S * 0.11, S * 0.065, 7);
+  }
 
-  // moss on the soil
-  for (let x = px0 + S * 0.02; x < px0 + potW - S * 0.02; x += 2) {
-    if (rand() < 0.35) continue;
+  // ---------- leaves: clusters of short strokes, lit from the top left ----------
+  const crown = tips.reduce(
+    (b, t) => ({ x0: Math.min(b.x0, t.x), x1: Math.max(b.x1, t.x), y0: Math.min(b.y0, t.y), y1: Math.max(b.y1, t.y) }),
+    {
+      x0: Infinity,
+      x1: -Infinity,
+      y0: Infinity,
+      y1: -Infinity,
+    },
+  );
+  const ccx = (crown.x0 + crown.x1) / 2;
+  const ccy = (crown.y0 + crown.y1) / 2;
+  const leaf = Math.max(3, S / 95);
+  const step = leaf * 0.85;
+  for (const t of tips) {
+    const r = mulberry32(Math.round(t.x * 13 + t.y));
+    for (let y = t.y - t.r; y < t.y + t.r * 0.7; y += step) {
+      for (let x = t.x - t.r; x < t.x + t.r; x += step) {
+        const lx = x + (r() - 0.5) * step;
+        const ly = y + (r() - 0.5) * step;
+        const u = (lx - t.x) / t.r;
+        const v = (ly - t.y) / t.r;
+        const edge = 1 + 0.18 * Math.sin(Math.atan2(v, u) * 6 + t.x);
+        if (u * u + (v < 0 ? v * v : (v / 0.7) ** 2) > edge * edge) continue;
+        const low = (v + 1) / 1.7; // 0 top .. 1 underside of the cluster
+        if (r() > 0.4 + 0.5 * low) continue;
+        // the whole crown is darker to the bottom right, away from the light
+        const away = 0.18 * ((lx - ccx) / (crown.x1 - crown.x0 + 1) + (ly - ccy) / (crown.y1 - crown.y0 + 1));
+        strokes.push({
+          x: lx,
+          y: ly,
+          len: leaf * (0.65 + r() * 0.6),
+          ang: r() * Math.PI,
+          alpha: Math.min(1, Math.max(0.2, 0.25 + 0.6 * low + away)),
+          sway: 0.05,
+        });
+      }
+    }
+  }
+
+  // ---------- at its foot: a bush on the right, tall grass on the left ----------
+  for (let k = 0; k < 4; k++) {
+    const bx = cx + S * (0.2 + k * 0.07);
+    const by = gy - S * (0.05 + (k % 2) * 0.02);
+    const br = S * (0.06 + (k === 1 ? 0.02 : 0));
+    for (let y = by - br; y < by + br * 0.6; y += step) {
+      for (let x = bx - br; x < bx + br; x += step) {
+        const u = (x - bx) / br;
+        const v = (y - by) / br;
+        if (u * u + v * v > 1 || rand() > 0.5 + 0.4 * ((v + 1) / 2)) continue;
+        strokes.push({
+          x,
+          y,
+          len: leaf * (0.6 + rand() * 0.5),
+          ang: rand() * Math.PI,
+          alpha: 0.4 + 0.5 * ((v + 1) / 2),
+          sway: 0.03,
+        });
+      }
+    }
+  }
+  for (let k = 0; k < (mobile ? 9 : 14); k++) {
+    const x0 = cx - S * (0.18 + rand() * 0.16);
+    const len = S * (0.08 + rand() * 0.1);
+    const lean = (rand() - 0.6) * 1.4;
+    const segs = 6;
+    let p = { x: x0, y: gy };
+    for (let s = 1; s <= segs; s++) {
+      const t = s / segs;
+      const a = -Math.PI / 2 + lean * t * t;
+      const q = { x: p.x + Math.cos(a) * (len / segs), y: p.y + Math.sin(a) * (len / segs) };
+      strokes.push({
+        x: (p.x + q.x) / 2,
+        y: (p.y + q.y) / 2,
+        len: len / segs + 1,
+        ang: a,
+        alpha: 0.55 + 0.3 * (1 - t),
+        sway: 0.06 * t,
+      });
+      p = q;
+    }
+  }
+  // the ground: a soft line of short grass
+  for (let x = cx - S * 0.45; x < cx + S * 0.55; x += 2.5) {
+    const fade = 1 - Math.abs((x - cx) / (S * 0.5)) ** 2;
+    if (fade <= 0 || rand() > fade) continue;
     strokes.push({
-      x: x + rand() * 2,
-      y: soil - S * 0.02 - rand() * S * 0.012,
+      x,
+      y: gy + 1 - rand() * 3,
       len: 2.5 + rand() * 3,
-      ang: -Math.PI / 2 + (rand() - 0.5) * 1.4,
-      alpha: 0.55 + rand() * 0.3,
-      sway: 0.01,
+      ang: -Math.PI / 2 + (rand() - 0.5) * 1.2,
+      alpha: 0.6,
+      sway: 0.02,
     });
   }
 
