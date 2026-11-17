@@ -3,18 +3,21 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A spruce forest in black ASCII on white, after Shishkin's forests, drawn
- * so its forms read at a glance.
+ * A spruce forest in black on white, after Shishkin's forests and ASCII
+ * game renderers: foliage as free needle strokes, everything else as a grid
+ * of characters.
  *
- * Made in two steps. First the forest is painted on a hidden canvas as clear,
- * outlined forms: a pale band of spruce tips on the horizon, a lighter middle
- * row, four big spruces standing apart (tiers of drooping branches with ragged
- * tips), and up close a cut stump with growth rings, mushrooms, ferns and
- * grass. Then the painting is read as characters: where it has an edge the
- * edge's direction is drawn with | / \ -, and elsewhere each cell gets the
- * symbol whose measured ink in the page's mono font matches its tone.
+ * The four big spruces (and a lighter middle row) are made of thousands of
+ * short strokes that hang and lean outward along each tier, dense in the
+ * tier's shaded underside and sparse on its lit side, so the tiers read. A
+ * meadow of grass blades runs from short and pale at the horizon to long and
+ * dense up close. Behind and under them, a hidden canvas is painted (pale
+ * spruce silhouettes on the horizon, trunks, a cut stump with growth rings,
+ * mushrooms, ferns) and read as characters: edges become | / \ - by their
+ * direction (a structure tensor on the full painting), tone becomes the
+ * symbol of matching measured ink.
  *
- * The forest is drawn once; only a few falling needles move. The four big
+ * The characters are drawn once; the strokes sway in a slow wind. The four big
  * spruces carry the prefix tree's words: prefix, product, prototype, project.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
@@ -93,12 +96,17 @@ function measureInk(font: string, cw: number, ch: number): Ink {
 
 type Label = { text: string; x: number; y: number };
 
+/** a needle or a grass blade: a short free stroke, not on the character grid */
+type Stroke = { x: number; y: number; len: number; ang: number; alpha: number; sway: number; grass?: boolean };
+
 type Painting = {
-  /** ink per pixel of the hidden canvas, 0 paper .. 1 black */
+  /** ink per pixel of the hidden canvas (trunks, stump, mushrooms, ferns), 0 paper .. 1 black */
   ink: Float32Array;
   W: number;
   H: number;
   labels: Label[];
+  /** foliage and grass, drawn as strokes over the characters */
+  strokes: Stroke[];
 };
 
 function paintForest(w: number, h: number, ground: number): Painting {
@@ -120,60 +128,77 @@ function paintForest(w: number, h: number, ground: number): Painting {
   const horizon = ground * 0.72;
   const line = Math.max(1.4, Math.min(w, h) / 420); // outline weight
   const labels: Label[] = [];
+  const strokes: Stroke[] = [];
   g.lineJoin = "round";
   g.lineCap = "round";
 
-  /** a spruce: tiers of drooping branches with ragged tips, a little trunk below */
-  const spruce = (x: number, base: number, height: number, fill: number, outline: boolean) => {
+  /**
+   * a spruce: a trunk for the character grid, and tiers of branches made of
+   * needle strokes that droop outward, dense in each tier's shaded underside
+   * and sparse on its lit upper side and on the right
+   */
+  const spruce = (x: number, base: number, height: number, strength: number, trunk: boolean) => {
     const width = height * 0.42;
     const trunkH = height * 0.1;
-    g.fillStyle = grey(Math.min(1, fill + 0.35));
-    g.fillRect(x - width * 0.035, base - trunkH * 1.4, width * 0.07, trunkH * 1.4);
-    if (outline) {
-      g.strokeStyle = grey(1);
-      g.lineWidth = line;
-      g.strokeRect(x - width * 0.035, base - trunkH * 1.4, width * 0.07, trunkH * 1.4);
+    if (trunk) {
+      // the trunk runs up under the branches: the character grid shows it between needles
+      const tw = Math.max(3, width * 0.07);
+      const tg = g.createLinearGradient(x - tw, 0, x + tw, 0);
+      tg.addColorStop(0, grey(0.9 * strength));
+      tg.addColorStop(1, grey(0.55 * strength));
+      g.fillStyle = tg;
+      g.beginPath();
+      g.moveTo(x - tw, base);
+      g.lineTo(x - tw * 0.3, base - height * 0.85);
+      g.lineTo(x + tw * 0.3, base - height * 0.85);
+      g.lineTo(x + tw, base);
+      g.closePath();
+      g.fill();
     }
     const tiers = 7 + Math.floor(rand() * 3);
     const top = base - height;
+    const step = Math.max(2.2, height / 190); // spacing between needles
+    const len0 = Math.max(3.5, height / 42);
     for (let t = 0; t < tiers; t++) {
       const f = t / tiers; // 0 bottom .. 1 top
       const yb = base - trunkH - f * (height - trunkH) * 0.92; // the tier's lower edge
       const hw = (width / 2) * (1 - f) ** 0.85 + width * 0.03;
       const th = ((height - trunkH) / tiers) * 1.9;
       const apex = Math.max(top, yb - th);
-      g.beginPath();
-      g.moveTo(x, apex);
-      g.quadraticCurveTo(x - hw * 0.45, yb - th * 0.45, x - hw, yb + th * 0.12);
+      const path = new Path2D();
+      path.moveTo(x, apex);
+      path.quadraticCurveTo(x - hw * 0.45, yb - th * 0.45, x - hw, yb + th * 0.12);
       const teeth = Math.max(4, Math.round(hw / (height * 0.025)));
-      for (let s = 1; s <= teeth; s++) {
-        const px = x - hw + (2 * hw * s) / teeth;
-        const sag = th * 0.1 * Math.sin((Math.PI * s) / teeth);
-        g.lineTo(px - hw / teeth, yb - th * 0.08 + sag);
-        g.lineTo(px, yb + th * (0.1 + rand() * 0.08) + sag);
+      for (let q = 1; q <= teeth; q++) {
+        const px = x - hw + (2 * hw * q) / teeth;
+        const sag = th * 0.1 * Math.sin((Math.PI * q) / teeth);
+        path.lineTo(px - hw / teeth, yb - th * 0.08 + sag);
+        path.lineTo(px, yb + th * (0.1 + rand() * 0.08) + sag);
       }
-      g.quadraticCurveTo(x + hw * 0.45, yb - th * 0.45, x, apex);
-      g.closePath();
-      // lit from the right: the left of each tier a little darker
-      const sh = g.createLinearGradient(x - hw, 0, x + hw, 0);
-      sh.addColorStop(0, grey(fill * 1.25));
-      sh.addColorStop(0.6, grey(fill));
-      sh.addColorStop(1, grey(fill * 0.6));
-      g.fillStyle = sh;
-      g.fill();
-      if (outline) {
-        g.strokeStyle = grey(1);
-        g.lineWidth = line;
-        g.stroke();
+      path.quadraticCurveTo(x + hw * 0.45, yb - th * 0.45, x, apex);
+      path.closePath();
+      for (let py = apex; py < yb + th * 0.3; py += step) {
+        for (let px = x - hw; px < x + hw; px += step) {
+          const sx = px + (rand() - 0.5) * step;
+          const sy = py + (rand() - 0.5) * step;
+          if (!g.isPointInPath(path, sx, sy)) continue;
+          const v = Math.min(1, Math.max(0, (sy - apex) / (yb - apex))); // 0 top of tier .. 1 its lower edge
+          const u = (sx - x) / hw; // -1 left .. 1 right
+          const dense = (0.22 + 0.78 * v * v) * (1 - 0.4 * Math.max(0, u));
+          if (rand() > dense) continue;
+          strokes.push({
+            x: sx,
+            y: sy,
+            len: len0 * (0.6 + rand() * 0.7) * (0.7 + 0.5 * v),
+            ang: Math.PI / 2 - u * 0.75 + (rand() - 0.5) * 0.55, // hanging, leaning outward
+            alpha: strength * (0.35 + 0.65 * dense),
+            sway: 0.05 + 0.05 * strength,
+          });
+        }
       }
     }
     // the leader at the very top
-    g.strokeStyle = grey(outline ? 1 : fill * 1.3);
-    g.lineWidth = line;
-    g.beginPath();
-    g.moveTo(x, top + height * 0.02);
-    g.lineTo(x, top - height * 0.03);
-    g.stroke();
+    for (let q = 0; q < 4; q++) strokes.push({ x, y: top + q * len0 * 0.6, len: len0, ang: Math.PI / 2, alpha: strength, sway: 0.04 });
   };
 
   /** a fern: fronds arching out of one root, each with paired leaflets */
@@ -303,12 +328,34 @@ function paintForest(w: number, h: number, ground: number): Painting {
     }
   };
 
-  // the far forest: a band of pale spruce tips along the horizon
+  // the far forest: pale spruce silhouettes, left to the character grid
   for (let x = -20; x < w + 20; ) {
-    const ht = ground * (0.08 + rand() * 0.12);
-    spruce(x, horizon + ground * 0.01, ht, 0.09, false);
-    x += ht * (0.18 + rand() * 0.15);
+    const ht = ground * (0.1 + rand() * 0.14);
+    const hw = ht * 0.2;
+    const by = horizon + ground * 0.01;
+    g.beginPath();
+    g.moveTo(x, by - ht);
+    for (let q = 1; q <= 6; q++) {
+      const yy = by - ht + (ht * q) / 6;
+      const ww = (hw * q) / 6;
+      g.lineTo(x - ww, yy);
+      g.lineTo(x - ww * 0.6, yy - ht * 0.03);
+    }
+    g.lineTo(x - hw, by);
+    g.lineTo(x + hw, by);
+    for (let q = 6; q >= 1; q--) {
+      const yy = by - ht + (ht * q) / 6;
+      const ww = (hw * q) / 6;
+      g.lineTo(x + ww * 0.6, yy - ht * 0.03);
+      g.lineTo(x + ww, yy);
+    }
+    g.closePath();
+    g.fillStyle = grey(0.22 + rand() * 0.1);
+    g.fill();
+    x += ht * (0.18 + rand() * 0.14);
   }
+  g.fillStyle = grey(0.22);
+  g.fillRect(0, horizon + ground * 0.005, w, ground * 0.012);
   // the forest floor line, broken
   g.strokeStyle = grey(0.35);
   g.lineWidth = 1;
@@ -320,7 +367,7 @@ function paintForest(w: number, h: number, ground: number): Painting {
   }
   // a middle row of spruces, lighter, outlined thinly
   const midXs = mobile ? [0.22, 0.55, 0.82] : [0.2, 0.38, 0.5, 0.66, 0.74, 0.93];
-  for (const fx of midXs) spruce(fx * w + (rand() - 0.5) * 20, horizon + ground * 0.04, ground * (0.3 + rand() * 0.1), 0.13, false);
+  for (const fx of midXs) spruce(fx * w + (rand() - 0.5) * 20, horizon + ground * 0.04, ground * (0.3 + rand() * 0.1), 0.5, true);
 
   // the four named spruces, standing apart, nearest the viewer
   const big = mobile
@@ -340,7 +387,7 @@ function paintForest(w: number, h: number, ground: number): Painting {
     const x = b.fx * w;
     const base = b.base * ground;
     const ht = b.ht * ground;
-    spruce(x, base, ht, 0.2, true);
+    spruce(x, base, ht, 0.95, true);
     labels.push({ text: b.word, x, y: base - ht * 0.45 });
   }
 
@@ -357,11 +404,38 @@ function paintForest(w: number, h: number, ground: number): Painting {
     const y = horizon + ground * 0.05 + rand() * ground * 0.25;
     grass(rand() * w, y, ground * 0.025 * (0.6 + (y - horizon) / ground * 3), 0.55 + (y - horizon) / ground);
   }
+  // a meadow of blades: short and pale near the horizon, long and dense up close
+  for (let y = horizon + 3; y < h; y += 4) {
+    const t = Math.min(1, (y - horizon) / (ground - horizon));
+    for (let x = rand() * 6; x < w; x += 5 / (0.35 + t)) {
+      if (rand() > 0.25 + 0.45 * t) continue;
+      strokes.push({
+        x: x + (rand() - 0.5) * 4,
+        y,
+        len: (3 + (mobile ? 8 : 13) * t) * (0.6 + rand() * 0.6),
+        ang: -Math.PI / 2 + (rand() - 0.5) * 0.9,
+        alpha: 0.18 + 0.5 * t,
+        sway: 0.08 + 0.1 * t,
+        grass: true,
+      });
+    }
+  }
 
   const data = g.getImageData(0, 0, W, H).data;
   const ink = new Float32Array(W * H);
   for (let p = 0; p < W * H; p++) ink[p] = 1 - data[p * 4] / 255;
-  return { ink, W, H, labels };
+  // grass stays clear of the stump, mushrooms and ferns, so they read
+  const kept = strokes.filter((st) => {
+    if (!st.grass) return true;
+    const x = Math.round(st.x);
+    const y = Math.round(st.y);
+    for (let dy = -10; dy <= 4; dy += 7) {
+      const yy = Math.min(H - 1, Math.max(0, y + dy));
+      for (let dx = -6; dx <= 6; dx += 6) if (ink[yy * W + Math.min(W - 1, Math.max(0, x + dx))] > 0.35) return false;
+    }
+    return true;
+  });
+  return { ink, W, H, labels, strokes: kept };
 }
 
 // ---------- the painting, read as characters ----------
@@ -379,7 +453,11 @@ type Cells = {
   edge: string[];
   clear: Uint8Array;
   labels: Label[];
+  /** strokes as packed data, grouped by darkness: x, y, len, ang, sway per stroke */
+  strokeBuckets: Float32Array[];
 };
+
+const STROKE_SHADES = 8;
 
 function readCells(p: Painting, w: number, h: number, cw: number, ch: number, clearings: DOMRect[]): Cells {
   const cols = Math.ceil(w / cw);
@@ -443,7 +521,17 @@ function readCells(p: Painting, w: number, h: number, cw: number, ch: number, cl
     }
   }
 
-  return { cols, rows, cw, ch, w, h, tone, edge, clear, labels: p.labels };
+  const groups: number[][] = Array.from({ length: STROKE_SHADES }, () => []);
+  for (const st of p.strokes) {
+    const i = Math.floor(st.x / cw);
+    const j = Math.floor(st.y / ch);
+    if (i >= 0 && j >= 0 && i < cols && j < rows && clear[j * cols + i]) continue;
+    const b = Math.min(STROKE_SHADES - 1, Math.max(0, Math.floor(st.alpha * STROKE_SHADES)));
+    groups[b].push(st.x, st.y, st.len, st.ang, st.sway);
+  }
+  const strokeBuckets = groups.map((g) => new Float32Array(g));
+
+  return { cols, rows, cw, ch, w, h, tone, edge, clear, labels: p.labels, strokeBuckets };
 }
 
 // ---------- drawing ----------
@@ -467,7 +555,6 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
     let still: HTMLCanvasElement | null = null; // the forest, drawn once
     let dpr = 1;
     let labelFont = "";
-    let moteFont = "";
     let raf = 0;
     let last = 0;
     let visible = true;
@@ -487,7 +574,6 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
       const family = getComputedStyle(canvas).fontFamily || "monospace";
       const font = `300 ${size}px ${family}`; // thin strokes, like an etching needle
       labelFont = `${mobile ? 11 : 13}px ${family}`;
-      moteFont = `${mobile ? 9 : 11}px ${family}`;
       ctx.font = font;
       const cw = Math.max(4, ctx.measureText("M").width);
       const ch = Math.round(size * 1.15);
@@ -555,17 +641,25 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // a few needles falling, turning as they go
-      if (!reduced) {
-      ctx.font = moteFont;
-      ctx.fillStyle = `rgba(${INK}, 0.5)`;
-      for (let m = 0; m < 14; m++) {
-        const speed = 10 + hash(m, 3, 92) * 12;
-        const x = hash(m, 1, 92) * c.w + Math.sin(t * 0.6 + m) * 22;
-        const y = (hash(m, 2, 92) * c.h + t * speed) % c.h;
-        ctx.fillText(Math.sin(t * 1.3 + m * 2) > 0 ? "/" : "\\", x, y);
-      }
-      }
+      // needles and blades: free strokes, swaying in a slow wind
+      ctx.lineCap = "round";
+      ctx.lineWidth = c.w < 640 ? 0.8 : 1;
+      c.strokeBuckets.forEach((d, b) => {
+        if (!d.length) return;
+        ctx.strokeStyle = `rgba(${INK}, ${((b + 1) / STROKE_SHADES).toFixed(3)})`;
+        ctx.beginPath();
+        for (let q = 0; q < d.length; q += 5) {
+          const x = d[q];
+          const y = d[q + 1];
+          const len = d[q + 2];
+          const a = d[q + 3] + (reduced ? 0 : d[q + 4] * Math.sin(t * 1.1 + x * 0.006 + y * 0.002));
+          const dx = Math.cos(a) * len * 0.5;
+          const dy = Math.sin(a) * len * 0.5;
+          ctx.moveTo(x - dx, y - dy);
+          ctx.lineTo(x + dx, y + dy);
+        }
+        ctx.stroke();
+      });
 
       // names on four of the trees
       ctx.font = labelFont;
