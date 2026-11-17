@@ -3,20 +3,19 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A pine forest in the morning, after Shishkin ("Morning in a Pine Forest"),
- * in black ASCII on white, like an etching.
+ * A spruce forest in black ASCII on white, after Shishkin's forests, drawn
+ * so its forms read at a glance.
  *
- * Made in two steps. First a forest is painted on a hidden canvas: rows of
- * pine trunks fading into mist, a ragged canopy overhead, light falling in
- * from the back right, a broken pine fallen across the foreground, great
- * trunks framing the view, ferns. Then the painting is read as characters:
- * where it has an edge (a trunk's side, the log's slope) the edge's direction
- * is drawn with | / \ -, and elsewhere each cell gets the symbol whose
- * measured ink in the page's mono font matches its tone.
+ * Made in two steps. First the forest is painted on a hidden canvas as clear,
+ * outlined forms: a pale band of spruce tips on the horizon, a lighter middle
+ * row, four big spruces standing apart (tiers of drooping branches with ragged
+ * tips), and up close a cut stump with growth rings, mushrooms, ferns and
+ * grass. Then the painting is read as characters: where it has an edge the
+ * edge's direction is drawn with | / \ -, and elsewhere each cell gets the
+ * symbol whose measured ink in the page's mono font matches its tone.
  *
- * Light shafts breathe, mist drifts along the floor and motes float in the
- * light; the pointer is a patch of sun. Four trees carry the names of the
- * prefix tree's words: prefix, product, prototype, project.
+ * The forest is drawn once; only a few falling needles move. The four big
+ * spruces carry the prefix tree's words: prefix, product, prototype, project.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -30,20 +29,6 @@ function hash(x: number, y: number, seed = 0) {
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h ^= h >>> 16;
   return (h >>> 0) / 4294967295;
-}
-
-function valueNoise(x: number, y: number, seed: number) {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = x - xi;
-  const yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = yf * yf * (3 - 2 * yf);
-  const a = hash(xi, yi, seed);
-  const b = hash(xi + 1, yi, seed);
-  const c = hash(xi, yi + 1, seed);
-  const d = hash(xi + 1, yi + 1, seed);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 
 function mulberry32(seed: number) {
@@ -104,7 +89,7 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: a pine forest at morning, after Shishkin ----------
+// ---------- the painting: a spruce forest, in clear outlined forms ----------
 
 type Label = { text: string; x: number; y: number };
 
@@ -114,10 +99,6 @@ type Painting = {
   W: number;
   H: number;
   labels: Label[];
-  /** where the floor of the far forest meets the trunks, css px */
-  floor: number;
-  /** where the light comes from, css px */
-  sun: { x: number; y: number };
 };
 
 function paintForest(w: number, h: number, ground: number): Painting {
@@ -127,295 +108,260 @@ function paintForest(w: number, h: number, ground: number): Painting {
   c.width = W;
   c.height = H;
   const g = c.getContext("2d", { willReadFrequently: true })!;
-  g.scale(W / w, H / h);
   g.fillStyle = "#fff";
   g.fillRect(0, 0, w, h);
 
-  const rand = mulberry32(19);
+  const rand = mulberry32(31);
   const mobile = w < 640;
-  const k = Math.max(0.5, Math.min(1.3, w / 1440)); // trunk widths follow the screen
-  const floor = ground * 0.63;
-  const sun = { x: w * 0.68, y: -h * 0.12 };
   const grey = (ink: number) => {
     const v = Math.round(255 * (1 - Math.max(0, Math.min(1, ink))));
     return `rgb(${v},${v},${v})`;
   };
+  const horizon = ground * 0.72;
+  const line = Math.max(1.4, Math.min(w, h) / 420); // outline weight
   const labels: Label[] = [];
+  g.lineJoin = "round";
+  g.lineCap = "round";
 
-  /** a pine trunk: tapering, lit on the right, bark streaks up close, a few dead branch stubs */
-  const trunk = (x: number, base: number, width: number, ink: number, bark: boolean) => {
-    const top = -h * 0.05;
-    const lean = (rand() - 0.5) * width * 0.8;
+  /** a spruce: tiers of drooping branches with ragged tips, a little trunk below */
+  const spruce = (x: number, base: number, height: number, fill: number, outline: boolean) => {
+    const width = height * 0.42;
+    const trunkH = height * 0.1;
+    g.fillStyle = grey(Math.min(1, fill + 0.35));
+    g.fillRect(x - width * 0.035, base - trunkH * 1.4, width * 0.07, trunkH * 1.4);
+    if (outline) {
+      g.strokeStyle = grey(1);
+      g.lineWidth = line;
+      g.strokeRect(x - width * 0.035, base - trunkH * 1.4, width * 0.07, trunkH * 1.4);
+    }
+    const tiers = 7 + Math.floor(rand() * 3);
+    const top = base - height;
+    for (let t = 0; t < tiers; t++) {
+      const f = t / tiers; // 0 bottom .. 1 top
+      const yb = base - trunkH - f * (height - trunkH) * 0.92; // the tier's lower edge
+      const hw = (width / 2) * (1 - f) ** 0.85 + width * 0.03;
+      const th = ((height - trunkH) / tiers) * 1.9;
+      const apex = Math.max(top, yb - th);
+      g.beginPath();
+      g.moveTo(x, apex);
+      g.quadraticCurveTo(x - hw * 0.45, yb - th * 0.45, x - hw, yb + th * 0.12);
+      const teeth = Math.max(4, Math.round(hw / (height * 0.025)));
+      for (let s = 1; s <= teeth; s++) {
+        const px = x - hw + (2 * hw * s) / teeth;
+        const sag = th * 0.1 * Math.sin((Math.PI * s) / teeth);
+        g.lineTo(px - hw / teeth, yb - th * 0.08 + sag);
+        g.lineTo(px, yb + th * (0.1 + rand() * 0.08) + sag);
+      }
+      g.quadraticCurveTo(x + hw * 0.45, yb - th * 0.45, x, apex);
+      g.closePath();
+      // lit from the right: the left of each tier a little darker
+      const sh = g.createLinearGradient(x - hw, 0, x + hw, 0);
+      sh.addColorStop(0, grey(fill * 1.25));
+      sh.addColorStop(0.6, grey(fill));
+      sh.addColorStop(1, grey(fill * 0.6));
+      g.fillStyle = sh;
+      g.fill();
+      if (outline) {
+        g.strokeStyle = grey(1);
+        g.lineWidth = line;
+        g.stroke();
+      }
+    }
+    // the leader at the very top
+    g.strokeStyle = grey(outline ? 1 : fill * 1.3);
+    g.lineWidth = line;
     g.beginPath();
-    g.moveTo(x - width / 2, base);
-    g.lineTo(x - width * 0.36 + lean, top);
-    g.lineTo(x + width * 0.36 + lean, top);
-    g.lineTo(x + width / 2, base);
+    g.moveTo(x, top + height * 0.02);
+    g.lineTo(x, top - height * 0.03);
+    g.stroke();
+  };
+
+  /** a fern: fronds arching out of one root, each with paired leaflets */
+  const fern = (x: number, base: number, size: number) => {
+    g.strokeStyle = grey(1);
+    const fronds = 6;
+    for (let f = 0; f < fronds; f++) {
+      const a = -Math.PI / 2 + (f / (fronds - 1) - 0.5) * 2.3 + (rand() - 0.5) * 0.15;
+      const len = size * (0.75 + rand() * 0.3) * (1 - Math.abs(f / (fronds - 1) - 0.5) * 0.4);
+      const bend = (f / (fronds - 1) - 0.5) * 0.9 + 0.1;
+      const pts: { x: number; y: number; nx: number; ny: number }[] = [];
+      for (let s = 0; s <= 20; s++) {
+        const t = s / 20;
+        const ang = a + bend * t * t;
+        const px = x + Math.cos(a) * len * t + Math.cos(ang) * len * 0.15 * t * t;
+        const py = base + Math.sin(a) * len * t + Math.abs(bend) * len * 0.35 * t * t;
+        pts.push({ x: px, y: py, nx: -Math.sin(ang), ny: Math.cos(ang) });
+      }
+      g.lineWidth = line;
+      g.beginPath();
+      pts.forEach((p, s) => (s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
+      g.stroke();
+      g.lineWidth = Math.max(1, line * 0.8);
+      for (let s = 2; s < 20; s += 1) {
+        const p = pts[s];
+        const t = s / 20;
+        const leaf = size * 0.16 * Math.sin(Math.PI * (0.15 + t * 0.85)) * (1 - t * 0.3);
+        for (const side of [-1, 1]) {
+          g.beginPath();
+          g.moveTo(p.x, p.y);
+          g.lineTo(p.x + side * p.nx * leaf + (pts[s + 1]?.x - p.x || 0) * 0.8, p.y + side * p.ny * leaf + (pts[s + 1]?.y - p.y || 0) * 0.8);
+          g.stroke();
+        }
+      }
+    }
+  };
+
+  /** a cut stump: bark sides, growth rings on top, roots */
+  const stump = (x: number, base: number, width: number) => {
+    const hgt = width * 0.7;
+    const ry = width * 0.18;
+    g.lineWidth = line;
+    g.strokeStyle = grey(1);
+    // roots
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(x + s * width * 0.45, base - hgt * 0.3);
+      g.quadraticCurveTo(x + s * width * 0.6, base - hgt * 0.02, x + s * width * 0.85, base + ry * 0.4);
+      g.lineTo(x + s * width * 0.5, base + ry * 0.4);
+      g.closePath();
+      g.fillStyle = grey(0.45);
+      g.fill();
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(x - width / 2, base - hgt);
+    g.lineTo(x - width / 2, base);
+    g.ellipse(x, base, width / 2, ry, 0, Math.PI, 0, true);
+    g.lineTo(x + width / 2, base - hgt);
     g.closePath();
     const sh = g.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
-    sh.addColorStop(0, grey(ink));
-    sh.addColorStop(0.5, grey(ink * 0.9));
-    sh.addColorStop(0.78, grey(ink * 0.5));
-    sh.addColorStop(1, grey(ink * 0.75));
+    sh.addColorStop(0, grey(0.6));
+    sh.addColorStop(1, grey(0.3));
     g.fillStyle = sh;
     g.fill();
-    // root flare
-    g.beginPath();
-    g.moveTo(x - width * 0.9, base + width * 0.08);
-    g.quadraticCurveTo(x - width * 0.45, base - width * 0.3, x - width * 0.35, base - width * 0.9);
-    g.lineTo(x + width * 0.35, base - width * 0.9);
-    g.quadraticCurveTo(x + width * 0.45, base - width * 0.3, x + width * 0.9, base + width * 0.08);
-    g.closePath();
-    g.fillStyle = grey(ink * 0.95);
-    g.fill();
-    if (bark) {
-      g.strokeStyle = grey(Math.min(1, ink * 1.15));
-      for (let s = 0; s < width / 8; s++) {
-        const off = (rand() - 0.5) * width * 0.8;
-        let y = base;
-        g.lineWidth = 0.6 + rand() * 1.2;
-        g.beginPath();
-        g.moveTo(x + off, y);
-        while (y > top) {
-          y -= 8 + rand() * 30;
-          const t = (base - y) / (base - top);
-          g.lineTo(x + off * (1 - t * 0.3) + lean * t + (rand() - 0.5) * 2, y);
-        }
-        g.stroke();
-      }
-      // the lower bark breaks into plates
-      g.lineWidth = 1;
-      for (let s = 0; s < width * 0.6; s++) {
-        const y = base - rand() * (base - top) * 0.5;
-        const x0 = x + (rand() - 0.5) * width * 0.7;
-        g.beginPath();
-        g.moveTo(x0, y);
-        g.lineTo(x0 + width * (0.06 + rand() * 0.1), y + (rand() - 0.5) * 3);
-        g.stroke();
-      }
+    g.stroke();
+    // bark furrows
+    for (let s = 0; s < 6; s++) {
+      const bx = x - width * 0.4 + (width * 0.8 * s) / 5;
+      g.beginPath();
+      g.moveTo(bx, base - hgt + ry * 0.9);
+      g.lineTo(bx + (rand() - 0.5) * 3, base + ry * 0.6 * Math.sqrt(1 - ((bx - x) / (width / 2)) ** 2));
+      g.stroke();
     }
-    // dead branch stubs, angled down
+    // the cut face and its rings
+    g.beginPath();
+    g.ellipse(x, base - hgt, width / 2, ry, 0, 0, Math.PI * 2);
+    g.fillStyle = "#fff";
+    g.fill();
+    g.stroke();
+    g.lineWidth = Math.max(1, line * 0.7);
+    for (let r = 1; r <= 3; r++) {
+      g.beginPath();
+      g.ellipse(x + width * 0.03, base - hgt, (width / 2) * (r / 4), ry * (r / 4), 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+  };
+
+  /** a mushroom: a dark rounded cap on a pale stem */
+  const mushroom = (x: number, base: number, size: number, lean: number) => {
+    const stemW = size * 0.32;
+    const stemH = size * 0.8;
+    const top = { x: x + lean * size * 0.2, y: base - stemH };
+    g.lineWidth = line;
+    g.strokeStyle = grey(1);
+    g.beginPath();
+    g.moveTo(x - stemW * 0.6, base);
+    g.quadraticCurveTo(x - stemW * 0.7, base - stemH * 0.5, top.x - stemW * 0.4, top.y);
+    g.lineTo(top.x + stemW * 0.4, top.y);
+    g.quadraticCurveTo(x + stemW * 0.7, base - stemH * 0.5, x + stemW * 0.6, base);
+    g.closePath();
+    g.fillStyle = grey(0.08);
+    g.fill();
+    g.stroke();
+    g.beginPath();
+    g.ellipse(top.x, top.y + size * 0.02, size * 0.55, size * 0.42, lean * 0.2, Math.PI, 0);
+    g.closePath();
+    const cap = g.createLinearGradient(top.x - size * 0.5, 0, top.x + size * 0.5, 0);
+    cap.addColorStop(0, grey(0.85));
+    cap.addColorStop(1, grey(0.55));
+    g.fillStyle = cap;
+    g.fill();
+    g.stroke();
+  };
+
+  /** a tuft of grass blades */
+  const grass = (x: number, base: number, size: number, ink: number) => {
     g.strokeStyle = grey(ink);
-    for (let s = 0; s < 2 + rand() * 3; s++) {
-      const y = base - (0.35 + rand() * 0.6) * (base - top);
-      const side = rand() < 0.5 ? -1 : 1;
-      const t = (base - y) / (base - top);
-      const x0 = x + lean * t + side * width * 0.38 * (1 - t * 0.3);
-      const len = width * (0.4 + rand() * 0.9);
-      g.lineWidth = Math.max(0.6, width * 0.045);
+    g.lineWidth = Math.max(1, line * 0.8);
+    for (let b = 0; b < 5; b++) {
+      const a = -Math.PI / 2 + (b / 4 - 0.5) * 1.1 + (rand() - 0.5) * 0.2;
+      const len = size * (0.6 + rand() * 0.5);
       g.beginPath();
-      g.moveTo(x0, y);
-      g.lineTo(x0 + side * len, y + len * (0.25 + rand() * 0.35));
+      g.moveTo(x, base);
+      g.quadraticCurveTo(x + Math.cos(a) * len * 0.4, base + Math.sin(a) * len * 0.7, x + Math.cos(a) * len, base + Math.sin(a) * len);
       g.stroke();
     }
   };
 
-  /** needles high up: tufts of short strokes hanging from the branches, thinning downward */
-  const canopy = (ink: number, depth: number, count: number) => {
-    for (let s = 0; s < count; s++) {
-      const x = rand() * w;
-      const y = -h * 0.03 + rand() ** 2.2 * h * (0.1 + depth * 0.05);
-      const rx = (24 + rand() * 50) * k * (0.6 + depth * 0.45);
-      // the branch the tuft hangs from
-      g.strokeStyle = grey(ink);
-      g.lineWidth = Math.max(0.6, rx * 0.04);
-      g.beginPath();
-      g.moveTo(x - rx, y + rx * 0.08);
-      g.quadraticCurveTo(x, y - rx * 0.1, x + rx, y + rx * 0.12);
-      g.stroke();
-      // needles: short strokes, drooping, denser in the middle of the tuft
-      g.lineWidth = Math.max(0.5, 0.6 + depth * 0.25);
-      for (let q = 0; q < 60 + depth * 20; q++) {
-        const u = (rand() - 0.5) * 2;
-        const px = x + u * rx;
-        const py = y + (rand() - 0.3) * rx * 0.35 * (1 - Math.abs(u) * 0.5);
-        const a = Math.PI / 2 + (rand() - 0.5) * 1.6;
-        const len = rx * (0.08 + rand() * 0.12);
-        g.strokeStyle = grey(ink * (0.6 + rand() * 0.5));
-        g.beginPath();
-        g.moveTo(px, py);
-        g.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len);
-        g.stroke();
-      }
-    }
-  };
-
-  /** the white of distance and morning mist laid over everything behind */
-  const veil = (alpha: number) => {
-    const m = g.createLinearGradient(0, 0, 0, h);
-    m.addColorStop(0, `rgba(255,255,255,${alpha * 0.5})`);
-    m.addColorStop(floor / h - 0.08, `rgba(255,255,255,${alpha})`);
-    m.addColorStop(Math.min(1, floor / h + 0.06), `rgba(255,255,255,${alpha * 1.1})`);
-    m.addColorStop(1, `rgba(255,255,255,${alpha * 0.3})`);
-    g.fillStyle = m;
-    g.fillRect(0, 0, w, h);
-  };
-
-  // the forest floor, darker toward us, with patches of moss and shade
-  const fl = g.createLinearGradient(0, floor, 0, h);
-  fl.addColorStop(0, grey(0.12));
-  fl.addColorStop(1, grey(0.5));
-  g.fillStyle = fl;
-  g.fillRect(0, floor, w, h - floor);
-  for (let s = 0; s < 220; s++) {
-    const y = floor + rand() ** 0.7 * (h - floor);
-    const t = (y - floor) / (h - floor);
-    g.beginPath();
-    g.ellipse(rand() * w, y, (20 + rand() * 90) * (0.3 + t), (3 + rand() * 8) * (0.3 + t), 0, 0, Math.PI * 2);
-    g.fillStyle = grey(0.1 + t * 0.5 + (rand() - 0.5) * 0.2);
-    g.fill();
+  // the far forest: a band of pale spruce tips along the horizon
+  for (let x = -20; x < w + 20; ) {
+    const ht = ground * (0.08 + rand() * 0.12);
+    spruce(x, horizon + ground * 0.01, ht, 0.09, false);
+    x += ht * (0.18 + rand() * 0.15);
   }
-
-  // trunks, far to near, each row behind a little more mist
-  const rows = [
-    { n: mobile ? 22 : 54, ink: 0.3, wid: [2, 5], base: 0.0 },
-    { n: mobile ? 14 : 34, ink: 0.42, wid: [5, 10], base: 0.035 },
-    { n: mobile ? 9 : 20, ink: 0.55, wid: [10, 18], base: 0.085 },
-    { n: mobile ? 5 : 11, ink: 0.7, wid: [18, 32], base: 0.16 },
-  ];
-  const named = ["prefix", "product", "prototype", "project"];
-  const namedAt = mobile ? [0.3, 0.46, 0.62, 0.78] : [0.36, 0.47, 0.6, 0.71];
-  rows.forEach((r, d) => {
-    canopy(r.ink * 0.9, d, mobile ? 10 + d * 4 : 26 + d * 8);
-    const xs: number[] = [];
-    for (let s = 0; s < r.n; s++) {
-      // leave a gap around the light, as in the painting
-      let x = rand() * w;
-      if (d >= 2 && Math.abs(x - sun.x * 0.92) < w * 0.07) x += w * 0.14;
-      xs.push(x);
-    }
-    if (d === 2) xs.push(...namedAt.map((u) => u * w));
-    xs.forEach((x, s) => {
-      const base = floor + ground * r.base + rand() * ground * 0.02;
-      const width = (r.wid[0] + rand() * (r.wid[1] - r.wid[0])) * k;
-      trunk(x, base, width, r.ink, d >= 2);
-      if (d === 2 && s >= r.n) labels.push({ text: named[s - r.n], x, y: floor - ground * (0.14 + 0.05 * ((s - r.n) % 2)) });
-    });
-    veil(d === 3 ? 0.12 : 0.3);
-  });
-
-  // light pouring in from the back, right of centre
-  const glow = g.createRadialGradient(sun.x * 0.92, floor - ground * 0.12, 0, sun.x * 0.92, floor - ground * 0.12, Math.max(w, h) * 0.38);
-  glow.addColorStop(0, "rgba(255,255,255,0.75)");
-  glow.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = glow;
-  g.fillRect(0, 0, w, h);
-  // shafts of light slanting down through the trunks
-  for (let q = 0; q < 9; q++) {
-    const a = Math.PI * (0.56 + rand() * 0.22);
-    const spread = 0.012 + rand() * 0.03;
-    const len = Math.hypot(w, h) * 1.2;
-    g.beginPath();
-    g.moveTo(sun.x, sun.y);
-    g.lineTo(sun.x + Math.cos(a - spread) * len, sun.y + Math.sin(a - spread) * len);
-    g.lineTo(sun.x + Math.cos(a + spread) * len, sun.y + Math.sin(a + spread) * len);
-    g.closePath();
-    const sh = g.createLinearGradient(0, 0, 0, ground);
-    sh.addColorStop(0, "rgba(255,255,255,0)");
-    sh.addColorStop(0.35, `rgba(255,255,255,${0.25 + rand() * 0.25})`);
-    sh.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = sh;
-    g.fill();
-  }
-
-  // the broken pine, fallen across the foreground, its stump splintered
-  const A = { x: w * (mobile ? -0.05 : 0.12), y: ground * 0.9 };
-  const B = { x: w * (mobile ? 0.62 : 0.58), y: ground * 0.77 };
-  const thick = ground * (mobile ? 0.03 : 0.042);
-  const nx = -(B.y - A.y);
-  const ny = B.x - A.x;
-  const nl = Math.hypot(nx, ny);
-  const ux = (nx / nl) * thick;
-  const uy = (ny / nl) * thick;
-  g.beginPath();
-  g.moveTo(A.x + ux, A.y + uy);
-  g.lineTo(B.x + ux * 0.8, B.y + uy * 0.8);
-  g.lineTo(B.x - ux * 0.8, B.y - uy * 0.8);
-  g.lineTo(A.x - ux, A.y - uy);
-  g.closePath();
-  const lg = g.createLinearGradient(A.x - ux, A.y - uy, A.x + ux, A.y + uy);
-  lg.addColorStop(0, grey(0.35));
-  lg.addColorStop(0.5, grey(0.62));
-  lg.addColorStop(1, grey(0.85));
-  g.fillStyle = lg;
-  g.fill();
-  g.strokeStyle = grey(0.9);
-  for (let s = 0; s < 6; s++) {
-    // bark lines along the log, and branches broken off it
-    const t = rand();
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(A.x + (B.x - A.x) * t - ux * 0.6, A.y + (B.y - A.y) * t - uy * 0.6);
-    g.lineTo(A.x + (B.x - A.x) * (t + 0.2) - ux * 0.5, A.y + (B.y - A.y) * (t + 0.2) - uy * 0.5);
-    g.stroke();
-    const bt = 0.15 + rand() * 0.75;
-    const bx = A.x + (B.x - A.x) * bt;
-    const by = A.y + (B.y - A.y) * bt - thick * 0.8;
-    g.lineWidth = Math.max(1, thick * 0.1);
-    g.beginPath();
-    g.moveTo(bx, by);
-    g.lineTo(bx + (rand() - 0.3) * thick * 1.4, by - thick * (0.6 + rand() * 1.2));
-    g.stroke();
-  }
-  // the stump it broke from: splintered, the long shards leaning toward the log
-  const sx = B.x + thick * 1.5;
-  const sw = thick * 1.5;
-  const sBase = B.y + thick * 0.6;
-  const sTop = B.y - ground * 0.08;
-  g.beginPath();
-  g.moveTo(sx - sw, sBase);
-  g.lineTo(sx - sw * 0.85, sTop + ground * 0.02);
-  const shards = 9;
-  for (let q = 0; q <= shards; q++) {
-    const x = sx - sw * 0.85 + (sw * 1.7 * q) / shards;
-    const tall = q === 2 ? ground * 0.07 : q === 3 ? ground * 0.045 : rand() * ground * 0.025;
-    g.lineTo(x - sw * 0.05, sTop - tall);
-    g.lineTo(x + sw * 0.06, sTop + rand() * ground * 0.015);
-  }
-  g.lineTo(sx + sw, sBase);
-  g.closePath();
-  const sg = g.createLinearGradient(sx - sw, 0, sx + sw, 0);
-  sg.addColorStop(0, grey(0.85));
-  sg.addColorStop(0.65, grey(0.48));
-  sg.addColorStop(1, grey(0.68));
-  g.fillStyle = sg;
-  g.fill();
-  g.strokeStyle = grey(0.95);
+  // the forest floor line, broken
+  g.strokeStyle = grey(0.35);
   g.lineWidth = 1;
-  for (let q = 0; q < 7; q++) {
-    const x = sx - sw * 0.7 + rand() * sw * 1.4;
+  for (let x = 0; x < w; x += 6 + rand() * 30) {
     g.beginPath();
-    g.moveTo(x, sBase - thick * 0.3);
-    g.lineTo(x + (rand() - 0.5) * 3, sTop + ground * 0.01);
+    g.moveTo(x, horizon + ground * 0.012);
+    g.lineTo(x + 4 + rand() * 20, horizon + ground * 0.012);
     g.stroke();
   }
+  // a middle row of spruces, lighter, outlined thinly
+  const midXs = mobile ? [0.22, 0.55, 0.82] : [0.2, 0.38, 0.5, 0.66, 0.74, 0.93];
+  for (const fx of midXs) spruce(fx * w + (rand() - 0.5) * 20, horizon + ground * 0.04, ground * (0.3 + rand() * 0.1), 0.13, false);
 
-  // great trunks framing the view, close by
-  trunk(w * (mobile ? 0.04 : 0.06), h * 1.02, w * (mobile ? 0.13 : 0.1), 0.88, true);
-  if (!mobile) trunk(w * 0.955, h * 1.02, w * 0.055, 0.82, true);
-  trunk(w * (mobile ? 0.92 : 0.84), ground * 0.97, (mobile ? 22 : 34) * k, 0.76, true);
+  // the four named spruces, standing apart, nearest the viewer
+  const big = mobile
+    ? [
+        { fx: 0.1, base: 0.94, ht: 0.72, word: "prefix" },
+        { fx: 0.38, base: 0.86, ht: 0.5, word: "product" },
+        { fx: 0.68, base: 0.88, ht: 0.56, word: "prototype" },
+        { fx: 0.93, base: 0.96, ht: 0.74, word: "project" },
+      ]
+    : [
+        { fx: 0.09, base: 0.97, ht: 0.86, word: "prefix" },
+        { fx: 0.29, base: 0.86, ht: 0.58, word: "product" },
+        { fx: 0.69, base: 0.85, ht: 0.55, word: "prototype" },
+        { fx: 0.87, base: 0.96, ht: 0.82, word: "project" },
+      ];
+  for (const b of big) {
+    const x = b.fx * w;
+    const base = b.base * ground;
+    const ht = b.ht * ground;
+    spruce(x, base, ht, 0.2, true);
+    labels.push({ text: b.word, x, y: base - ht * 0.45 });
+  }
 
-  // ferns and grass up close
-  for (let s = 0; s < (mobile ? 60 : 120); s++) {
-    const y = ground * (0.8 + rand() * 0.25);
-    const t = Math.min(1, (y - ground * 0.8) / (ground * 0.25));
-    const x = rand() * w;
-    const len = (10 + rand() * 30) * (0.5 + t) * k * 1.4;
-    g.strokeStyle = grey(0.45 + t * 0.4);
-    g.lineWidth = 0.8 + t;
-    for (let f = -3; f <= 3; f++) {
-      const a = -Math.PI / 2 + f * 0.28 + (rand() - 0.5) * 0.2;
-      g.beginPath();
-      g.moveTo(x, y);
-      g.quadraticCurveTo(x + Math.cos(a) * len * 0.5, y + Math.sin(a) * len * 0.7, x + Math.cos(a) * len, y + Math.sin(a) * len * 0.6 + len * 0.15);
-      g.stroke();
-    }
+  // the forest floor up close: a stump, mushrooms, ferns, grass
+  const floorY = ground * (mobile ? 0.93 : 0.95);
+  stump(w * (mobile ? 0.5 : 0.52), floorY, w * (mobile ? 0.16 : 0.075));
+  const mx = w * (mobile ? 0.66 : 0.6);
+  mushroom(mx, floorY + ground * 0.01, ground * 0.07, -0.4);
+  mushroom(mx + ground * 0.06, floorY + ground * 0.02, ground * 0.05, 0.3);
+  mushroom(mx - ground * 0.04, floorY + ground * 0.025, ground * 0.032, 0.1);
+  fern(w * (mobile ? 0.25 : 0.42), floorY + ground * 0.04, ground * (mobile ? 0.16 : 0.2));
+  if (!mobile) fern(w * 0.76, floorY + ground * 0.05, ground * 0.24);
+  for (let s = 0; s < (mobile ? 10 : 22); s++) {
+    const y = horizon + ground * 0.05 + rand() * ground * 0.25;
+    grass(rand() * w, y, ground * 0.025 * (0.6 + (y - horizon) / ground * 3), 0.55 + (y - horizon) / ground);
   }
 
   const data = g.getImageData(0, 0, W, H).data;
   const ink = new Float32Array(W * H);
   for (let p = 0; p < W * H; p++) ink[p] = 1 - data[p * 4] / 255;
-  return { ink, W, H, labels, floor, sun };
+  return { ink, W, H, labels };
 }
 
 // ---------- the painting, read as characters ----------
@@ -431,10 +377,6 @@ type Cells = {
   tone: Float32Array;
   /** an edge character where the painting has an edge, else "" */
   edge: string[];
-  /** how much a light shaft crosses this cell, 0..1 */
-  shaft: Float32Array;
-  /** how much morning mist lies here, 0..1 */
-  mist: Float32Array;
   clear: Uint8Array;
   labels: Label[];
 };
@@ -486,21 +428,6 @@ function readCells(p: Painting, w: number, h: number, cw: number, ch: number, cl
     }
   }
 
-  // light shafts fan down from the sun; mist lies along the far floor
-  const shaft = new Float32Array(n);
-  const mist = new Float32Array(n);
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      const x = (i + 0.5) * cw;
-      const y = (j + 0.5) * ch;
-      const a = Math.atan2(y - p.sun.y, x - p.sun.x);
-      const band = Math.max(0, Math.min(1, (valueNoise(a * 34, 3.3, 90) - 0.52) * 4));
-      const fade = Math.max(0, 1 - Math.abs(y / p.floor - 0.62) * 1.4);
-      shaft[j * cols + i] = band * fade;
-      mist[j * cols + i] = Math.exp(-(((y - p.floor) / (h * 0.08)) ** 2));
-    }
-  }
-
   const clear = new Uint8Array(n);
   for (const r of clearings) {
     const pad = cw * 3;
@@ -516,7 +443,7 @@ function readCells(p: Painting, w: number, h: number, cw: number, ch: number, cl
     }
   }
 
-  return { cols, rows, cw, ch, w, h, tone, edge, shaft, mist, clear, labels: p.labels };
+  return { cols, rows, cw, ch, w, h, tone, edge, clear, labels: p.labels };
 }
 
 // ---------- drawing ----------
@@ -537,13 +464,13 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
     let cells: Cells | null = null;
     let ink: Ink | null = null;
     let atlas: HTMLCanvasElement | null = null;
+    let still: HTMLCanvasElement | null = null; // the forest, drawn once
     let dpr = 1;
     let labelFont = "";
     let moteFont = "";
     let raf = 0;
     let last = 0;
     let visible = true;
-    const pointer = { x: -1e4, y: -1e4, energy: 0 };
 
     const setup = () => {
       const rect = host.getBoundingClientRect();
@@ -590,62 +517,54 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
         groundEl && groundEl.offsetParent !== null ? groundEl.getBoundingClientRect().bottom - rect.top : h;
 
       cells = readCells(paintForest(w, h, ground), w, h, cw, ch, clearings);
+      still = drawStill(cells, ink, atlas);
       draw(performance.now());
     };
 
-    const draw = (now: number) => {
-      const c = cells;
-      if (!c || !ink || !atlas) return;
-      const t = reduced ? 0 : now / 1000;
+    const drawStill = (c: Cells, ink: Ink, atlas: HTMLCanvasElement) => {
+      const out = document.createElement("canvas");
+      out.width = canvas.width;
+      out.height = canvas.height;
+      const o = out.getContext("2d")!;
       const cwD = Math.ceil(c.cw * dpr);
       const chD = Math.ceil(c.ch * dpr);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const pr = 90; // the pointer is a patch of sunlight on the forest
       for (let j = 0; j < c.rows; j++) {
         for (let i = 0; i < c.cols; i++) {
           const k = j * c.cols + i;
           if (c.clear[k]) continue;
-          let v = c.tone[k];
-          if (!reduced) {
-            const s = c.shaft[k] * (0.7 + 0.3 * Math.sin(t * 0.35 + i * 0.02));
-            v *= 1 - 0.6 * s;
-            const m = c.mist[k] * (0.45 + 0.55 * valueNoise(i * 0.05 + t * 0.06, j * 0.14, 91));
-            v *= 1 - 0.55 * m;
-            if (pointer.energy > 0.01) {
-              const d = Math.hypot((i + 0.5) * c.cw - pointer.x, (j + 0.5) * c.ch - pointer.y) / pr;
-              if (d < 1) v *= 1 - 0.5 * (1 - d * d) * pointer.energy;
-            }
-          } else {
-            v *= 1 - 0.6 * c.shaft[k];
-            v *= 1 - 0.4 * c.mist[k];
-          }
-          v = 0.95 * v ** 1.3; // paper should dominate, as in an etching
+          const v = 0.95 * c.tone[k] ** 1.3; // paper should dominate, as in an etching
           const e = c.edge[k];
           if (v < 0.03 && !e) continue;
           const ci = e ? (ink.index.get(e) ?? 0) : ink.lut[Math.min(63, Math.round(v * 63))];
           if (ci === 0) continue;
-          ctx.drawImage(atlas, ci * cwD, 0, cwD, chD, Math.round(i * c.cw * dpr), Math.round(j * c.ch * dpr), cwD, chD);
+          o.drawImage(atlas, ci * cwD, 0, cwD, chD, Math.round(i * c.cw * dpr), Math.round(j * c.ch * dpr), cwD, chD);
         }
       }
+      return out;
+    };
+
+    const draw = (now: number) => {
+      const c = cells;
+      if (!c || !still) return;
+      const t = reduced ? 0 : now / 1000;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(still, 0, 0);
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // motes of dust drifting in the light
+      // a few needles falling, turning as they go
+      if (!reduced) {
       ctx.font = moteFont;
-      ctx.fillStyle = `rgba(${INK}, 0.45)`;
-      for (let m = 0; m < 26; m++) {
-        const bx = hash(m, 1, 92) * c.w;
-        const by = hash(m, 2, 92) * c.h * 0.7;
-        const x = bx + Math.sin(t * 0.2 + m) * 18;
-        const y = (by + t * (4 + hash(m, 3, 92) * 6)) % (c.h * 0.75);
-        const i = Math.floor(x / c.cw);
-        const j = Math.floor(y / c.ch);
-        if (i < 0 || j < 0 || i >= c.cols || j >= c.rows || c.shaft[j * c.cols + i] < 0.3) continue;
-        ctx.fillText("·", x, y);
+      ctx.fillStyle = `rgba(${INK}, 0.5)`;
+      for (let m = 0; m < 14; m++) {
+        const speed = 10 + hash(m, 3, 92) * 12;
+        const x = hash(m, 1, 92) * c.w + Math.sin(t * 0.6 + m) * 22;
+        const y = (hash(m, 2, 92) * c.h + t * speed) % c.h;
+        ctx.fillText(Math.sin(t * 1.3 + m * 2) > 0 ? "/" : "\\", x, y);
+      }
       }
 
       // names on four of the trees
@@ -665,15 +584,7 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
       raf = requestAnimationFrame(loop);
       if (!visible || now - last < 110) return; // ~9 fps: ASCII should tick, not glide
       last = now;
-      pointer.energy *= 0.94;
       draw(now);
-    };
-
-    const onMove = (e: PointerEvent) => {
-      const r = canvas.getBoundingClientRect();
-      pointer.x = e.clientX - r.left;
-      pointer.y = e.clientY - r.top;
-      pointer.energy = Math.min(1, pointer.energy + 0.2);
     };
 
     let resizeTimer = 0;
@@ -690,17 +601,13 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
 
     document.fonts?.ready.then(setup);
     setup();
-    if (!reduced) {
-      raf = requestAnimationFrame(loop);
-      host.addEventListener("pointermove", onMove);
-    }
+    if (!reduced) raf = requestAnimationFrame(loop);
 
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(resizeTimer);
       ro.disconnect();
       io.disconnect();
-      host.removeEventListener("pointermove", onMove);
     };
   }, []);
 
