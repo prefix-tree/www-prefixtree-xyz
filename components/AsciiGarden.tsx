@@ -3,22 +3,24 @@
 import { useEffect, useRef } from "react";
 
 /*
- * The world as a garden, as you would see it standing on its path: a soft
- * watercolour wash underneath, ASCII on top as the texture, tinted by what it
- * draws (deep green leaves, warm bark, blue-grey distance), and coloured
- * blossoms in the flower beds.
+ * Composed after Shishkin's "Rye": a low horizon under a big bright sky, a
+ * golden rye field with an earth road running past a great oak (the prefix
+ * tree) toward a hazy forest edge, and Scots pines standing in two groups.
  *
- * The scene is laid out in perspective: a lawn in mown stripes and a gravel
- * path with flower beds run to a far tree line; trees stand at different
- * distances, hazier the further they are. At the end of the path grows the
- * prefix tree: its trunk is "pr", its boughs spell the rest ("efix", "o" then
- * "duct", "totype", "ject"), and each whole word is a crown of leaves with a
- * name plate (prefix, product, prototype, project).
+ * The world as a garden, as you would see it standing in it: a soft
+ * watercolour wash underneath, ASCII on top as the texture, tinted by what it
+ * draws (deep green leaves, golden rye, warm bark, blue-grey distance), and
+ * cornflowers, poppies and chamomile in the near rye.
+ *
+ * The scene is laid out in perspective, things hazier the further they are.
+ * The oak is the prefix tree: its trunk is "pr", its boughs spell the rest
+ * ("efix", "o" then "duct", "totype", "ject"), and each whole word is a crown
+ * of leaves with a name plate (prefix, product, prototype, project).
  *
  * Every cell holds an amount of ink; it is drawn with the character whose
  * measured coverage in the page's mono font is closest, so tone reads
- * smoothly. Leaves and near grass move in a slow wind that picks up around
- * the pointer; a few birds cross the sky.
+ * smoothly. Wind runs across the rye in waves, near stalks lean in gusts and
+ * leaves rustle, more so around the pointer; a few birds cross the sky.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -128,6 +130,8 @@ const M_FAR = 3;
 const M_PATH = 4;
 const M_BARK = 5;
 const M_CLOUD = 6;
+const M_RYE = 7;
+const M_PINE = 8; // the warm, bare trunks of Scots pines
 
 /** ink colours for the characters, by material: deep green leaves, warm bark, blue-grey distance */
 const INKS: [number, number, number][] = [
@@ -138,9 +142,9 @@ const INKS: [number, number, number][] = [
   [104, 88, 70],
   [50, 38, 28],
   [80, 98, 110],
+  [122, 90, 32],
+  [96, 54, 30],
 ];
-
-const BLOOMS = ["#c46a63", "#d6a03c", "#9580c0", "#f6f1e6"];
 
 /** how much of a thing's tone survives the haze, by distance band (far .. near) */
 const HAZE_TONE = [0.5, 0.66, 0.84, 1];
@@ -148,6 +152,8 @@ const HAZE_TONE = [0.5, 0.66, 0.84, 1];
 const NONE = 0;
 const LEAF = 1; // rustles
 const BLADE = 2; // near grass, sways
+const WAVE = 3; // rye: wind runs across the field in waves
+const STALK = 4; // a rye stalk up close: drawn | / \\ as it bends
 
 type Label = { text: string; x: number; y: number; strong: boolean };
 type Bloom = { x: number; y: number; size: number; color: string; glyph: string };
@@ -168,6 +174,7 @@ type Scene = {
   phase: Float32Array;
   clear: Uint8Array;
   mat: Uint8Array;
+  yh: number;
   labels: Label[];
   blooms: Bloom[];
 };
@@ -213,26 +220,28 @@ function buildScene(
     phase: new Float32Array(n),
     clear: new Uint8Array(n),
     mat: new Uint8Array(n),
+    yh: 0,
     labels: [],
     blooms: [],
   };
   const mobile = w < 640;
   const rand = mulberry32(23);
 
-  // camera: standing on the path, looking a little down the garden
+  // camera: standing at the edge of a rye field, a low horizon under a big sky (after Shishkin)
   const cx = w / 2;
-  const yh = h * (mobile ? 0.34 : 0.37); // horizon
+  const yh = h * (mobile ? 0.5 : 0.56); // horizon
+  sc.yh = yh;
   const f = h * 0.9; // focal length, px
   const camH = 1.7; // eye height, m
   const toScreen = (x: number, z: number) => ({ x: cx + (x * f) / z, y: yh + (camH * f) / z, s: f / z });
 
-  // the prefix tree stands at the end of the path
+  // the prefix tree, a great oak, stands in the field beside the road
   const visibleBottom = groundTop ?? h;
-  const treeBaseY = mobile ? Math.min(h * 0.6, visibleBottom - h * 0.16) : h * 0.57;
+  const treeBaseY = mobile ? Math.min(h * 0.66, visibleBottom - h * 0.12) : h * 0.68;
   const treeZ = (camH * f) / (treeBaseY - yh);
   const S = Math.min(treeBaseY - (mobile ? 190 : 175), (w * 0.92) / 1.45); // tree size, px
-  const plazaR = 2.2;
-  const pathHalf = 0.55;
+  const roadC = (z: number) => 3.2 * (1 - Math.exp(-z / 10)) - 0.4; // the road bends past the oak to the horizon
+  const roadHalf = 1.05;
 
   const cell = (i: number, j: number) => j * cols + i;
   const cellsIn = (x0: number, y0: number, x1: number, y1: number, fn: (i: number, j: number, x: number, y: number) => void) => {
@@ -306,8 +315,8 @@ function buildScene(
     parts.forEach((p, k) => blob(p.x, p.y, p.rx, p.ry, seed * 13 + k, tex, fog));
   };
   /** a tapering limb drawn with stroke characters; bark when it is wide */
-  const limb = (a: P, c: P, b: P, w0: number, w1: number, fog: number) => {
-    paint = M_BARK;
+  const limb = (a: P, c: P, b: P, w0: number, w1: number, fog: number, mat = M_BARK) => {
+    paint = mat;
     const len = Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - a.x, c.y - a.y);
     const steps = Math.max(6, Math.ceil(len / (Math.min(cw, ch) * 0.5)));
     for (let k = 0; k <= steps; k++) {
@@ -332,7 +341,7 @@ function buildScene(
   /** a soft shadow on the ground, offset away from the light */
   const shaded = new Float32Array(n);
   const shadow = (x: number, y: number, rx: number, ry: number, amount: number, z = 0) => {
-    if (z > 16) return; // far away, a shadow is too thin to see and only piles up on one line
+    if (z > 20) return; // far away, a shadow is too thin to see and only piles up on one line
     cellsIn(x - rx, Math.max(y - ry, yh + ch), x + rx, y + ry, (i, j, px, py) => {
       const u = (px - x) / rx;
       const v = (py - y) / ry;
@@ -347,60 +356,60 @@ function buildScene(
     });
   };
 
-  // ---------- sky: a few soft clouds, then the far tree line ----------
+  // ---------- sky: big and bright, soft cumulus gathering mid-sky ----------
+  const cloud = (x: number, y: number) => fbm(x / 340, y / 120, 50) + 0.2 * (1 - Math.abs(y / yh - 0.42) * 2);
   paint = M_CLOUD;
   cellsIn(0, 0, w, yh, (i, j, x, y) => {
-    const c = fbm(x / 260, y / 70, 50);
-    const v = Math.max(0, c - 0.58) * 0.9 * Math.min(1, (yh - y) / 60);
-    if (v > 0.015) ink(i, j, v, 0);
+    const c = cloud(x, y);
+    const d = c - 0.66;
+    if (d <= 0) return;
+    const under = Math.max(0, Math.min(1, 0.5 + (cloud(x, y - 28) - c) * 6)); // denser above: the shaded underside
+    const v = (0.04 + 0.22 * under) * Math.min(1, d * 8) * Math.min(1, (yh - y) / 40);
+    if (v > 0.012) ink(i, j, v, 0);
   });
+
+  // ---------- the forest edge on the horizon: a hazy saw of spruce tips ----------
   paint = M_FAR;
-  cellsIn(0, yh - 70, w, yh, (i, j, x, y) => {
-    const top = yh - (8 + 26 * fbm(x / 80, 0.5, 60) ** 1.4 + 12 * fbm(x / 22, 1.5, 61));
+  cellsIn(0, yh - 80, w, yh, (i, j, x, y) => {
+    const tri = 1 - Math.abs(((x / 11) % 1) * 2 - 1);
+    const spike = (4 + 20 * hash(Math.floor(x / 11), 0, 64)) * tri;
+    const top = yh - (10 + 20 * fbm(x / 140, 0.5, 60) + spike);
     if (y < top) return;
-    const v = 0.24 + 0.3 * (fbm(x / 9, y / 9, 62) - 0.5) + 0.18 * ((y - top) / (yh - top));
+    const v = 0.3 + 0.25 * (fbm(x / 7, y / 7, 62) - 0.5) + 0.15 * ((y - top) / (yh - top));
     ink(i, j, v, 0, LEAF, hash(i, j, 63) * 6);
   });
 
-  // ---------- the ground: lawn in mown stripes, a gravel path, a plaza ----------
+  // ---------- the ground: a rye field, an earth road with wheel ruts, grassy verges ----------
   cellsIn(0, yh + 1, w, h, (i, j, sx, sy) => {
-    if (sy <= yh + 1) return; // the row straddling the horizon belongs to the tree line
+    if (sy <= yh + 1) return; // the row straddling the horizon belongs to the forest edge
     const z = (camH * f) / (sy - yh);
     const x = ((sx - cx) * z) / f;
     const fog = fogAt(z);
     const detail = Math.min(1, 4 / z);
-    const dz = z - treeZ;
-    const pr = Math.sqrt(x * x + dz * dz);
-    paint = M_PATH;
-    if (pr < plazaR) {
-      ink(i, j, 0.05 + 0.1 * hash(i, j, 70) * detail, fog);
+    const rx = x - roadC(z);
+    if (Math.abs(rx) < roadHalf) {
+      paint = M_PATH;
+      const rut = Math.abs(Math.abs(rx) - 0.45) < 0.09;
+      ink(i, j, (rut ? 0.32 : 0.07) + 0.12 * hash(i, j, 71) * detail, fog);
       return;
     }
-    if (pr < plazaR + 0.12) {
-      ink(i, j, 0, fog);
-      const side = Math.abs(x) > plazaR * 0.85;
-      mark(i, j, side ? (x < 0 ? "(" : ")") : dz < 0 ? "_" : "-", fog);
+    if (Math.abs(rx) < roadHalf + 0.3) {
+      paint = M_GRASS;
+      ink(i, j, 0.3 + 0.22 * (hash(i, j, 74) - 0.5) * detail, fog, BLADE, hash(i, j, 75) * 6.28);
       return;
     }
-    if (Math.abs(x) < pathHalf && z < treeZ) {
-      ink(i, j, 0.05 + 0.12 * hash(i, j, 71) * detail, fog);
-      return;
-    }
-    if (Math.abs(x) < pathHalf + 0.07 && z < treeZ) {
-      ink(i, j, 0, fog);
-      mark(i, j, x < 0 ? "/" : "\\", fog);
-      return;
-    }
-    paint = M_GRASS;
-    const stripe = Math.floor((x + 100) / 1.6) % 2 ? 0.07 : -0.03;
-    const grass = 0.24 + stripe + 0.14 * (fbm(x * 0.9, z * 0.9, 1) - 0.5) + 0.22 * (hash(i, j, 72) - 0.5) * detail;
-    const haze = Math.min(1, z / 45);
-    ink(i, j, grass * (1 - haze) + 0.1 * haze, fog, z < 7 ? BLADE : NONE, hash(i, j, 73) * 6.28);
+    paint = M_RYE;
+    const v = 0.2 + 0.14 * (fbm(x * 0.4, z * 0.4, 1) - 0.5) + 0.18 * (hash(i, j, 72) - 0.5) * detail;
+    const haze = Math.min(1, z / 60);
+    ink(i, j, v * (1 - haze) + 0.12 * haze, fog, WAVE, x * 0.22 + z * 0.5);
   });
 
-  // ---------- things standing in the garden, drawn far to near ----------
+  // ---------- things standing in the field, drawn far to near ----------
   type Thing = { z: number; draw: () => void };
   const things: Thing[] = [];
+  const zNear = (camH * f) / (h - yh);
+  /** world x for a point a fraction of the way across the screen, at depth z */
+  const across = (fx: number, z: number) => ((fx * w - cx) * z) / f;
 
   const roundTree = (x: number, z: number, height: number, seed: number) => {
     const p = toScreen(x, z);
@@ -411,78 +420,100 @@ function buildScene(
     limb({ x: p.x, y: p.y }, { x: p.x, y: p.y - trunk * 0.5 }, { x: p.x, y: p.y - trunk - crownR * 0.3 }, crownR * 0.1, crownR * 0.06, fog);
     crown(p.x, p.y - trunk - crownR * 0.55, crownR * 1.05, crownR * 0.85, seed, Math.max(3, p.s * 0.45), fog);
   };
-  const conifer = (x: number, z: number, height: number, seed: number) => {
+
+  /** a Scots pine: a tall bare trunk, warm in the light, and flat dark clumps of needles high up */
+  const pine = (x: number, z: number, height: number, seed: number) => {
     const p = toScreen(x, z);
     const fog = fogAt(z);
-    const ht = height * p.s;
-    const wd = ht * 0.3;
-    shadow(p.x + wd * 0.4, p.y, wd * 1.2, Math.max(ch, wd * 0.25), 0.25, z);
-    limb({ x: p.x, y: p.y }, { x: p.x, y: p.y - ht * 0.06 }, { x: p.x, y: p.y - ht * 0.14 }, wd * 0.07, wd * 0.06, fog);
-    const top = p.y - ht;
-    cellsIn(p.x - wd, top, p.x + wd, p.y - ht * 0.1, (i, j, sx, sy) => {
-      const yr = (sy - top) / (ht * 0.9);
-      const half = wd * yr * (0.72 + 0.28 * ((yr * 5) % 1));
-      const dx = sx - p.x;
-      if (Math.abs(dx) > half) return;
-      const v = HAZE_TONE[fog] * 0.42 + (dx / (half || 1)) * 0.22 * HAZE_TONE[fog] + yr * 0.12 + 0.4 * (fbm(sx / Math.max(3, p.s * 0.3), sy / Math.max(3, p.s * 0.3), seed) - 0.5);
-      paint = M_LEAF;
-      ink(i, j, v, fog, LEAF, seed + i * 0.2);
-    });
-  };
-  const flowers = (x: number, z: number, seed: number) => {
-    const p = toScreen(x, z);
-    const fog = fogAt(z);
-    const rx = 0.36 * p.s;
-    const ry = 0.26 * p.s;
-    shadow(p.x + rx * 0.3, p.y, rx * 1.1, Math.max(ch * 0.6, ry * 0.4), 0.2, z);
-    blob(p.x, p.y - ry * 0.8, rx, ry, seed, Math.max(2.5, p.s * 0.12), fog, 0.68);
     const r = mulberry32(seed);
-    // blossoms: a colour per bed, a flower glyph up close, a dot further away
-    const color = BLOOMS[seed % BLOOMS.length];
-    const size = Math.max(4, Math.min(15, p.s * 0.11));
-    for (let k = 0; k < 6; k++) {
-      const fx = p.x + (r() - 0.5) * rx * 1.5;
-      const fy = p.y - ry * 0.8 - r() * ry * 0.9;
-      sc.blooms.push({ x: fx, y: fy, size, color, glyph: size > 8 ? ["✿", "❀", "✽"][Math.floor(r() * 3)] : "•" });
+    const ht = height * p.s;
+    const tw = Math.max(cw * 0.5, 0.26 * p.s);
+    const lean = (r() - 0.5) * 0.1 * ht;
+    const top = { x: p.x + lean, y: p.y - ht * 0.84 };
+    shadow(p.x + ht * 0.08, p.y, ht * 0.14, Math.max(ch, ht * 0.025), 0.22, z);
+    limb({ x: p.x, y: p.y }, { x: p.x + lean * 0.2, y: p.y - ht * 0.45 }, top, tw, tw * 0.45, fog, M_PINE);
+    const clumps: { x: number; y: number; rx: number }[] = [];
+    const count = 6 + Math.floor(r() * 3);
+    for (let k = 0; k < count; k++) {
+      const t = k / (count - 1);
+      const y = p.y - ht * (0.68 + t * 0.32);
+      const side = k % 2 ? 1 : -1;
+      const x2 = top.x + side * ht * (0.04 + r() * 0.12) * (1 - t * 0.6);
+      clumps.push({ x: x2, y, rx: ht * (0.1 + r() * 0.07) * (1 - t * 0.4) });
+      limb({ x: top.x - lean * (1 - t) * 0.3, y: y + ht * 0.03 }, { x: (top.x + x2) / 2, y: y + ht * 0.02 }, { x: x2, y }, tw * 0.35, tw * 0.15, fog, M_PINE);
     }
+    clumps
+      .sort((a, b) => a.y - b.y)
+      .forEach((c, k) => blob(c.x, c.y, c.rx, c.rx * 0.5, seed * 7 + k, Math.max(2.5, p.s * 0.3), Math.max(fog, 2), 1.25));
   };
 
-  // flower beds along both sides of the path
-  const zNear = (camH * f) / (h - yh);
-  for (let z = zNear + 0.2; z < treeZ - plazaR - 0.3; z += 0.42) {
-    for (const side of [-1, 1]) things.push({ z, draw: () => flowers(side * (pathHalf + 0.42 + rand() * 0.08), z, Math.floor(rand() * 999)) });
+  // pines in two groups, after Shishkin's "Rye": a cluster on the left, a pair on the right
+  const groups = mobile
+    ? [{ fx: [0.06, 0.16], n: 2 }, { fx: [0.86, 0.96], n: 2 }]
+    : [{ fx: [0.1, 0.3], n: 4 }, { fx: [0.74, 0.9], n: 3 }];
+  for (const g of groups) {
+    for (let k = 0; k < g.n; k++) {
+      const z = 15 + rand() * 8;
+      const x = across(g.fx[0] + (g.fx[1] - g.fx[0]) * (k + rand() * 0.6) / g.n, z);
+      const seed = Math.floor(rand() * 999);
+      const height = (mobile ? 7.5 : 9.5) + rand() * 2.5;
+      things.push({ z, draw: () => pine(x, z, height, seed) });
+    }
   }
-  // the garden's other trees: framing the view near us, around the plaza, and far away
-  const placeTree = (x: number, z: number, height: number) => {
+  // a lone pine close by, cut by the frame
+  if (!mobile) {
     const seed = Math.floor(rand() * 999);
-    const kind = rand() < 0.3 ? conifer : roundTree;
-    things.push({ z, draw: () => kind(x, z, height, seed) });
-  };
-  for (let k = 0; k < 6; k++) {
-    const side = k % 2 ? 1 : -1;
-    placeTree(side * (3.6 + rand() * 5), treeZ + 2 + rand() * 9, 3 + rand() * 1.8);
+    things.push({ z: 8, draw: () => pine(across(0.985, 8), 8, 16, seed) });
   }
-  for (let k = 0; k < 11; k++) {
-    const x = (rand() - 0.5) * 50;
-    const z = 16 + rand() * 30;
-    const p = toScreen(x, z);
-    if (Math.abs(p.x - cx) < S * 0.6) continue; // keep the prefix tree's crowns against the sky
-    placeTree(x, z, 3.5 + rand() * 3);
-  }
-  // bushes on the lawns
-  for (let k = 0; k < 10; k++) {
-    const side = rand() < 0.5 ? -1 : 1;
-    const x = side * (1.8 + rand() * 4);
-    const z = zNear + 2.5 + rand() * (treeZ + 5 - zNear);
+  // copses far off on the horizon
+  for (let k = 0; k < 9; k++) {
+    const z = 45 + rand() * 30;
+    const x = across(rand(), z);
     const seed = Math.floor(rand() * 999);
+    const height = 6 + rand() * 4;
+    things.push({ z, draw: () => roundTree(x, z, height, seed) });
+  }
+  // rye up close, stalk by stalk, with ears that bend in the wind
+  const stalks = Math.round(w * (mobile ? 0.4 : 0.28));
+  for (let k = 0; k < stalks; k++) {
+    const z = zNear + rand() * rand() * 4.5;
+    const x = across(rand() * 1.04 - 0.02, z);
+    if (Math.abs(x - roadC(z)) < roadHalf + 0.45) continue;
+    const ht = 0.75 + rand() * 0.5;
+    const ear = [";", "'", ",", "*"][Math.floor(rand() * 4)];
     things.push({
       z,
       draw: () => {
         const p = toScreen(x, z);
-        const r = (0.3 + (seed % 5) * 0.05) * p.s;
-        shadow(p.x + r * 0.3, p.y, r * 1.2, Math.max(ch * 0.6, r * 0.3), 0.22, z);
-        crown(p.x, p.y - r * 0.6, r * 1.2, r * 0.75, seed, Math.max(2.5, p.s * 0.2), fogAt(z), 4);
+        const i = Math.floor(p.x / cw);
+        if (i < 0 || i >= cols) return;
+        const fog = fogAt(z);
+        const top = p.y - ht * p.s;
+        paint = M_RYE;
+        for (let y = top + ch; y < p.y; y += ch) {
+          const j = Math.floor(y / ch);
+          if (j < 0 || j >= rows) continue;
+          ink(i, j, 0.3, fog, STALK, x * 0.15 + hash(i, 0, 76) * 2.5);
+        }
+        const jt = Math.floor(top / ch);
+        if (jt >= 0 && jt < rows) mark(i, jt, ear, fog);
       },
+    });
+  }
+  // cornflowers, poppies and chamomile in the near rye
+  for (let k = 0; k < (mobile ? 30 : 60); k++) {
+    const z = zNear + rand() * 6;
+    const x = across(rand(), z);
+    if (Math.abs(x - roadC(z)) < roadHalf + 0.3) continue;
+    const p = toScreen(x, z);
+    const size = Math.max(4, Math.min(14, p.s * 0.1));
+    const color = ["#4a6fc4", "#4a6fc4", "#c8473b", "#f6f1e6"][Math.floor(rand() * 4)];
+    sc.blooms.push({
+      x: p.x,
+      y: p.y - (0.3 + rand() * 0.6) * p.s * 0.9,
+      size,
+      color,
+      glyph: size > 8 ? ["✿", "❀", "✽"][Math.floor(rand() * 3)] : "•",
     });
   }
 
@@ -504,7 +535,7 @@ function buildScene(
       shadow(B.x + S * 0.14, B.y + ch * 0.3, S * 0.62, Math.max(ch, S * 0.07), 0.3);
       // root flare
       for (const dx of [-0.07, 0.07]) limb(at(dx * 0.3, 0.05), at(dx * 0.8, 0.01), at(dx * 1.6, -0.01), S * 0.012, S * 0.004, fog);
-      limb(B, at(-0.04, 0.18), pr, S * 0.055, S * 0.04, fog);
+      limb(B, at(-0.04, 0.18), pr, S * 0.07, S * 0.05, fog);
       limb(pr, at(0.12, 0.45), pro, S * 0.034, S * 0.026, fog);
       for (const wd of words) {
         const ctrl = { x: wd.from.x + (wd.node.x - wd.from.x) * 0.2, y: wd.from.y + (wd.node.y - wd.from.y) * 0.6 };
@@ -590,9 +621,20 @@ function paintWash(sc: Scene, dpr: number) {
         c = [112, 92, 72];
         a = 0.55;
         break;
-      case M_CLOUD:
-        c = [255, 255, 255];
-        a = Math.min(0.75, v * 5);
+      case M_CLOUD: {
+        // white bodies, a cool grey in the shaded undersides
+        const g = Math.min(1, v * 3.5);
+        c = [255 - 50 * g, 255 - 44 * g, 255 - 34 * g];
+        a = Math.min(0.85, v * 9);
+        break;
+      }
+      case M_RYE:
+        c = [228, 190, 108];
+        a = 0.3 + 0.55 * v;
+        break;
+      case M_PINE:
+        c = [184, 116, 70];
+        a = 0.62;
         break;
     }
     if (!c) continue;
@@ -611,9 +653,9 @@ function paintWash(sc: Scene, dpr: number) {
   wx.scale(dpr, dpr);
 
   // a pale sky, warm light low on the horizon behind the tree
-  const yh = rows * ch * 0.36;
+  const yh = sc.yh;
   const sky = wx.createLinearGradient(0, 0, 0, h * 0.5);
-  sky.addColorStop(0, "rgba(176, 202, 222, 0.42)");
+  sky.addColorStop(0, "rgba(160, 192, 220, 0.55)");
   sky.addColorStop(1, "rgba(176, 202, 222, 0)");
   wx.fillStyle = sky;
   wx.fillRect(0, 0, w, h * 0.5);
@@ -757,7 +799,15 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
               }
               const wind = Math.sin(i * 0.05 - t * 0.8) * 0.5 + 0.5;
               if (an === LEAF) v += Math.sin(sc.phase[k] + t * (1.3 + gust * 7)) * (0.04 + wind * 0.05 + gust * 0.2);
-              else v += Math.sin(sc.phase[k] + t * (1.5 + gust * 6) + wind * 2) * (0.06 + gust * 0.15);
+              else if (an === WAVE) v += Math.sin(sc.phase[k] - t * 1.3) * 0.09 + gust * 0.12;
+              else if (an === STALK) {
+                // mostly upright; a stalk leans only at the crest of a gust
+                const sway = Math.sin(sc.phase[k] - t * 1.1) + gust * 1.5;
+                ci = ink.index.get(sway > 0.85 ? "/" : sway < -0.92 ? "\\" : "|") ?? 0;
+                const row = sc.mat[k] * FOG_ALPHA.length + sc.fog[k];
+                ctx.drawImage(atlas, ci * cwD, row * chD, cwD, chD, Math.round(i * sc.cw * dpr), Math.round(j * sc.ch * dpr), cwD, chD);
+                continue;
+              } else v += Math.sin(sc.phase[k] + t * (1.5 + gust * 6) + wind * 2) * (0.06 + gust * 0.15);
             }
             v = 0.9 * Math.max(0, v) ** 1.6; // paper should dominate
             if (v < 0.02) continue;
