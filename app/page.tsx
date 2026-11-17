@@ -23,6 +23,13 @@ const notes = [
   },
 ];
 
+// a seedling, drawn in the hero garden's characters
+const seedling = String.raw`   \ | /
+  - (*) -
+   / | \
+     |
+ ,,,,|,,,,`;
+
 const projects = [
   {
     name: "cutcraft",
@@ -66,7 +73,7 @@ export default function Home() {
             products and open-source projects, each grown from one root.
           </p>
           <a
-            href="#about"
+            href="#mission"
             className="mt-5 inline-block text-sm text-neutral-900 underline underline-offset-4"
           >
             Get to know us →
@@ -83,14 +90,40 @@ export default function Home() {
 
       <div className="stripes" />
 
+      {/* ---------- MISSION ---------- */}
+      <section
+        id="mission"
+        className="mx-auto max-w-4xl scroll-mt-24 px-6 py-32 text-center sm:px-12 md:py-40"
+      >
+        <pre
+          aria-hidden="true"
+          className="mx-auto inline-block text-left font-mono text-sm leading-tight text-neutral-400"
+        >
+          {seedling}
+        </pre>
+        <div className="mt-8 font-mono text-xs uppercase tracking-[0.2em] text-neutral-500">
+          Our mission
+        </div>
+        <h2 className="mt-6 font-serif text-4xl leading-[1.05] text-neutral-900 sm:text-5xl md:text-7xl">
+          The world is a garden.
+          <br />
+          <span className="text-neutral-400">We want to add something beautiful to it.</span>
+        </h2>
+        <p className="mx-auto mt-10 max-w-xl text-base leading-relaxed text-neutral-700">
+          Every product, open-source project and public good we make is a tree
+          we plant: something that takes root, grows, and leaves the garden a
+          little better than we found it.
+        </p>
+      </section>
+
+      <div className="stripes" />
+
       {/* ---------- ABOUT ---------- */}
       <section id="about" className="mx-auto max-w-5xl scroll-mt-24 px-6 py-32 sm:px-12">
         <p className="max-w-3xl font-serif text-4xl leading-tight text-neutral-900 md:text-5xl">
-          The world is a big garden.{" "}
+          How we grow things.{" "}
           <span className="text-neutral-400">
-            We plant new trees in it: products and open-source projects that
-            take root, grow, and turn out useful for people and good for
-            society.
+            A small team, many branches, and one root they all share.
           </span>
         </p>
 
