@@ -3,17 +3,13 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A big old tree, a Japanese torii gate and a Celtic stone cross,
- * drawn as ASCII in black on white.
+ * A big old tree, drawn as ASCII in black on white.
  *
- * The tree comes from an illustration (public/hero-tree.webp); the torii,
- * standing back to the left, and the cross, to the right, are
- * drawn here as simple geometric forms. All three go onto one hidden canvas
- * (the tree multiplied in, so its white background keeps what is behind it)
- * and the canvas is read as characters: edges become | / \ - by their
+ * The tree comes from an illustration (public/hero-tree.webp). It is drawn
+ * onto a hidden canvas and read as characters: edges become | / \ - by their
  * direction (a structure tensor on the full painting), tone becomes the symbol
- * of matching measured ink. A line of grass along the ground is drawn as free
- * strokes that sway. The characters are drawn once.
+ * of matching measured ink, light tones in lighter ink. A line of grass along
+ * the ground is drawn as free strokes that sway. The characters are drawn once.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -87,7 +83,7 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: a big old tree, a torii gate and a Celtic cross ----------
+// ---------- the painting: a big old tree ----------
 
 type Label = { text: string; x: number; y: number };
 
@@ -119,140 +115,11 @@ function paintForest(w: number, h: number, ground: number, tree: HTMLImageElemen
 
   const rand = mulberry32(5);
   const mobile = w < 640;
-  const grey = (ink: number) => {
-    const v = Math.round(255 * (1 - Math.max(0, Math.min(1, ink))));
-    return `rgb(${v},${v},${v})`;
-  };
-  const line = Math.max(1.4, Math.min(w, h) / 420);
   const strokes: Stroke[] = [];
-  g.lineJoin = "round";
-  g.lineCap = "round";
 
   const gy = ground * (mobile ? 0.95 : 0.94); // the ground line
   const T = mobile ? Math.min(w * 0.82, (gy - 150) * 1.05) : Math.min(w * 0.5, (gy - 160) * 1.02); // tree size
   const tx = w * (mobile ? 0.52 : 0.6);
-
-  /** a torii: two pillars, a curved top beam with upturned ends, a tie beam, a central strut */
-  const torii = (x: number, base: number, s: number) => {
-    const fill = (path: () => void, ink: number) => {
-      g.beginPath();
-      path();
-      g.closePath();
-      g.fillStyle = grey(ink);
-      g.fill();
-      g.strokeStyle = grey(1);
-      g.lineWidth = line;
-      g.stroke();
-    };
-    const half = s * 0.36; // pillar spacing
-    const pw = s * 0.045;
-    const top = base - s * 0.86;
-    for (const side of [-1, 1]) {
-      const xb = x + side * half;
-      const xt = x + side * half * 0.92; // pillars lean in a little
-      fill(() => {
-        g.moveTo(xb - pw, base);
-        g.lineTo(xt - pw * 0.8, top);
-        g.lineTo(xt + pw * 0.8, top);
-        g.lineTo(xb + pw, base);
-      }, 0.62);
-      fill(() => g.rect(xb - pw * 1.5, base - s * 0.05, pw * 3, s * 0.05), 0.85); // the black foot
-    }
-    // nuki: the tie beam, through the pillars
-    fill(() => g.rect(x - half * 1.28, top + s * 0.17, half * 2.56, s * 0.045), 0.58);
-    // gakuzuka: the central strut
-    fill(() => g.rect(x - pw * 0.7, top + s * 0.03, pw * 1.4, s * 0.14), 0.58);
-    // shimaki and kasagi: the top beams, the upper one sweeping up at the ends
-    fill(() => g.rect(x - half * 1.3, top - s * 0.01, half * 2.6, s * 0.045), 0.6);
-    fill(() => {
-      const L = half * 1.55;
-      g.moveTo(x - L, top - s * 0.12);
-      g.quadraticCurveTo(x, top - s * 0.03, x + L, top - s * 0.12);
-      g.lineTo(x + L * 0.93, top - s * 0.06);
-      g.quadraticCurveTo(x, top + s * 0.01, x - L * 0.93, top - s * 0.06);
-    }, 0.85);
-  };
-
-  /** a Celtic cross: a tall shaft and arms with a ring around the crossing, on a stepped, tapering base */
-  const celticCross = (x: number, base: number, s: number) => {
-    const shape = (draw: () => void, ink: number) => {
-      g.beginPath();
-      draw();
-      g.closePath();
-      g.strokeStyle = "#fff";
-      g.lineWidth = s * 0.05; // a margin of paper, so it stands clear of the tree
-      g.stroke();
-      const lg = g.createLinearGradient(x - s * 0.2, 0, x + s * 0.2, 0);
-      lg.addColorStop(0, grey(ink + 0.12));
-      lg.addColorStop(1, grey(ink - 0.12));
-      g.fillStyle = lg;
-      g.fill();
-      g.strokeStyle = grey(1);
-      g.lineWidth = line;
-      g.stroke();
-    };
-    // the base: two steps
-    shape(() => g.rect(x - s * 0.17, base - s * 0.07, s * 0.34, s * 0.07), 0.5);
-    shape(() => {
-      g.moveTo(x - s * 0.12, base - s * 0.07);
-      g.lineTo(x - s * 0.09, base - s * 0.17);
-      g.lineTo(x + s * 0.09, base - s * 0.17);
-      g.lineTo(x + s * 0.12, base - s * 0.07);
-    }, 0.55);
-    // the shaft, tapering a little
-    const cy = base - s * 0.78; // the crossing
-    const sw = s * 0.055;
-    shape(() => {
-      g.moveTo(x - sw * 1.15, base - s * 0.17);
-      g.lineTo(x - sw, cy - s * 0.2);
-      g.lineTo(x + sw, cy - s * 0.2);
-      g.lineTo(x + sw * 1.15, base - s * 0.17);
-    }, 0.55);
-    // the ring: drawn as a thick band, so the four openings show paper
-    const rr = s * 0.13;
-    g.beginPath();
-    g.arc(x, cy, rr + s * 0.025, 0, Math.PI * 2);
-    g.arc(x, cy, rr - s * 0.025, 0, Math.PI * 2, true);
-    g.strokeStyle = "#fff";
-    g.lineWidth = s * 0.05;
-    g.stroke();
-    g.fillStyle = "#fff";
-    g.fill("evenodd");
-    g.fillStyle = grey(0.55);
-    g.fill("evenodd");
-    g.strokeStyle = grey(1);
-    g.lineWidth = line;
-    g.stroke();
-    // the arms, slightly flared at the ends
-    shape(() => {
-      const a = s * 0.22;
-      g.moveTo(x - a, cy - sw * 1.2);
-      g.lineTo(x - sw, cy - sw);
-      g.lineTo(x - sw, cy - s * 0.2);
-      g.lineTo(x + sw, cy - s * 0.2);
-      g.lineTo(x + sw, cy - sw);
-      g.lineTo(x + a, cy - sw * 1.2);
-      g.lineTo(x + a, cy + sw * 1.2);
-      g.lineTo(x + sw, cy + sw);
-      g.lineTo(x - sw, cy + sw);
-      g.lineTo(x - a, cy + sw * 1.2);
-    }, 0.55);
-    // a few carved knots on the shaft
-    g.strokeStyle = grey(0.95);
-    g.lineWidth = Math.max(1, line * 0.7);
-    for (let k = 0; k < 4; k++) {
-      const y = base - s * (0.24 + k * 0.1);
-      g.beginPath();
-      g.moveTo(x - sw * 0.6, y);
-      g.quadraticCurveTo(x, y - s * 0.05, x + sw * 0.6, y);
-      g.quadraticCurveTo(x, y + s * 0.05, x - sw * 0.6, y);
-      g.stroke();
-    }
-  };
-
-  // behind: the torii, a little further back, to the left of the tree
-  const toriiS = mobile ? T * 0.3 : T * 0.27;
-  torii(mobile ? w * 0.16 : Math.max(w * 0.36, tx - T * 0.42), gy - T * 0.015, toriiS);
 
   // the tree, from the illustration: multiplied in, so its white background leaves what is behind
   if (tree && tree.naturalWidth) {
@@ -262,9 +129,6 @@ function paintForest(w: number, h: number, ground: number, tree: HTMLImageElemen
     g.drawImage(tree, tx - iw / 2, gy - ih * TREE_GROUND, iw, ih);
     g.globalCompositeOperation = "source-over";
   }
-
-  // to the right: an old Celtic cross
-  celticCross(mobile ? w * 0.86 : Math.min(w * 0.88, tx + T * 0.58), gy + T * 0.005, mobile ? T * 0.4 : T * 0.4);
 
   // the ground: a soft line of grass running between them
   for (let x = w * (mobile ? 0 : 0.27); x < w * (mobile ? 1 : 0.95); x += 2.5) {
