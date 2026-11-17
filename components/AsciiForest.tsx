@@ -3,11 +3,11 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A big old tree, a Japanese torii gate and an English red telephone box,
+ * A big old tree, a Japanese torii gate and a Celtic stone cross,
  * drawn as ASCII in black on white.
  *
  * The tree comes from an illustration (public/hero-tree.webp); the torii,
- * standing back to the left, and the telephone box, in front to the right, are
+ * standing back to the left, and the cross, to the right, are
  * drawn here as simple geometric forms. All three go onto one hidden canvas
  * (the tree multiplied in, so its white background keeps what is behind it)
  * and the canvas is read as characters: edges become | / \ - by their
@@ -87,7 +87,7 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: a big old tree, a torii gate and a red telephone box ----------
+// ---------- the painting: a big old tree, a torii gate and a Celtic cross ----------
 
 type Label = { text: string; x: number; y: number };
 
@@ -173,53 +173,81 @@ function paintForest(w: number, h: number, ground: number, tree: HTMLImageElemen
     }, 0.85);
   };
 
-  /** a red telephone box (K6): domed roof, sign band, glazing bars, a plinth */
-  const phoneBox = (x: number, base: number, s: number) => {
-    const bw = s * 0.36;
-    const bh = s;
-    const x0 = x - bw / 2;
-    const top = base - bh;
+  /** a Celtic cross: a tall shaft and arms with a ring around the crossing, on a stepped, tapering base */
+  const celticCross = (x: number, base: number, s: number) => {
+    const shape = (draw: () => void, ink: number) => {
+      g.beginPath();
+      draw();
+      g.closePath();
+      g.strokeStyle = "#fff";
+      g.lineWidth = s * 0.05; // a margin of paper, so it stands clear of the tree
+      g.stroke();
+      const lg = g.createLinearGradient(x - s * 0.2, 0, x + s * 0.2, 0);
+      lg.addColorStop(0, grey(ink + 0.12));
+      lg.addColorStop(1, grey(ink - 0.12));
+      g.fillStyle = lg;
+      g.fill();
+      g.strokeStyle = grey(1);
+      g.lineWidth = line;
+      g.stroke();
+    };
+    // the base: two steps
+    shape(() => g.rect(x - s * 0.17, base - s * 0.07, s * 0.34, s * 0.07), 0.5);
+    shape(() => {
+      g.moveTo(x - s * 0.12, base - s * 0.07);
+      g.lineTo(x - s * 0.09, base - s * 0.17);
+      g.lineTo(x + s * 0.09, base - s * 0.17);
+      g.lineTo(x + s * 0.12, base - s * 0.07);
+    }, 0.55);
+    // the shaft, tapering a little
+    const cy = base - s * 0.78; // the crossing
+    const sw = s * 0.055;
+    shape(() => {
+      g.moveTo(x - sw * 1.15, base - s * 0.17);
+      g.lineTo(x - sw, cy - s * 0.2);
+      g.lineTo(x + sw, cy - s * 0.2);
+      g.lineTo(x + sw * 1.15, base - s * 0.17);
+    }, 0.55);
+    // the ring: drawn as a thick band, so the four openings show paper
+    const rr = s * 0.13;
+    g.beginPath();
+    g.arc(x, cy, rr + s * 0.025, 0, Math.PI * 2);
+    g.arc(x, cy, rr - s * 0.025, 0, Math.PI * 2, true);
+    g.strokeStyle = "#fff";
+    g.lineWidth = s * 0.05;
+    g.stroke();
+    g.fillStyle = "#fff";
+    g.fill("evenodd");
+    g.fillStyle = grey(0.55);
+    g.fill("evenodd");
     g.strokeStyle = grey(1);
     g.lineWidth = line;
-    // plinth
-    g.fillStyle = grey(0.5);
-    g.fillRect(x0 - bw * 0.06, base - s * 0.035, bw * 1.12, s * 0.035);
-    g.strokeRect(x0 - bw * 0.06, base - s * 0.035, bw * 1.12, s * 0.035);
-    // body
-    const body = g.createLinearGradient(x0, 0, x0 + bw, 0);
-    body.addColorStop(0, grey(0.7));
-    body.addColorStop(1, grey(0.5));
-    g.fillStyle = body;
-    g.fillRect(x0, top + s * 0.1, bw, bh - s * 0.135);
-    g.strokeRect(x0, top + s * 0.1, bw, bh - s * 0.135);
-    // the domed roof
-    g.beginPath();
-    g.moveTo(x0 - bw * 0.04, top + s * 0.1);
-    g.quadraticCurveTo(x, top - s * 0.02, x0 + bw * 1.04, top + s * 0.1);
-    g.closePath();
-    g.fillStyle = grey(0.65);
-    g.fill();
     g.stroke();
-    // the TELEPHONE sign: a pale band
-    g.fillStyle = grey(0.08);
-    g.fillRect(x0 + bw * 0.12, top + s * 0.12, bw * 0.76, s * 0.05);
-    g.strokeRect(x0 + bw * 0.12, top + s * 0.12, bw * 0.76, s * 0.05);
-    // the door's glazing: small panes in three columns
-    const gx0 = x0 + bw * 0.14;
-    const gw = bw * 0.72;
-    const gy0 = top + s * 0.21;
-    const gh = s * 0.56;
-    const cols = 3;
-    const rows = 8;
-    const pane = { w: gw / cols, h: gh / rows };
-    g.fillStyle = "#fff";
-    for (let r = 0; r < rows; r++)
-      for (let k = 0; k < cols; k++) {
-        const px = gx0 + k * pane.w + pane.w * 0.14;
-        const py = gy0 + r * pane.h + pane.h * 0.14;
-        g.fillRect(px, py, pane.w * 0.72, pane.h * 0.72);
-      }
-    g.strokeRect(gx0, gy0, gw, gh);
+    // the arms, slightly flared at the ends
+    shape(() => {
+      const a = s * 0.22;
+      g.moveTo(x - a, cy - sw * 1.2);
+      g.lineTo(x - sw, cy - sw);
+      g.lineTo(x - sw, cy - s * 0.2);
+      g.lineTo(x + sw, cy - s * 0.2);
+      g.lineTo(x + sw, cy - sw);
+      g.lineTo(x + a, cy - sw * 1.2);
+      g.lineTo(x + a, cy + sw * 1.2);
+      g.lineTo(x + sw, cy + sw);
+      g.lineTo(x - sw, cy + sw);
+      g.lineTo(x - a, cy + sw * 1.2);
+    }, 0.55);
+    // a few carved knots on the shaft
+    g.strokeStyle = grey(0.95);
+    g.lineWidth = Math.max(1, line * 0.7);
+    for (let k = 0; k < 4; k++) {
+      const y = base - s * (0.24 + k * 0.1);
+      g.beginPath();
+      g.moveTo(x - sw * 0.6, y);
+      g.quadraticCurveTo(x, y - s * 0.05, x + sw * 0.6, y);
+      g.quadraticCurveTo(x, y + s * 0.05, x - sw * 0.6, y);
+      g.stroke();
+    }
   };
 
   // behind: the torii, a little further back, to the left of the tree
@@ -235,8 +263,8 @@ function paintForest(w: number, h: number, ground: number, tree: HTMLImageElemen
     g.globalCompositeOperation = "source-over";
   }
 
-  // in front: the red telephone box, to the right
-  phoneBox(mobile ? w * 0.89 : Math.min(w * 0.9, tx + T * 0.5), gy + T * 0.01, mobile ? T * 0.3 : T * 0.3);
+  // to the right: an old Celtic cross
+  celticCross(mobile ? w * 0.86 : Math.min(w * 0.88, tx + T * 0.58), gy + T * 0.005, mobile ? T * 0.4 : T * 0.4);
 
   // the ground: a soft line of grass running between them
   for (let x = w * (mobile ? 0 : 0.27); x < w * (mobile ? 1 : 0.95); x += 2.5) {
