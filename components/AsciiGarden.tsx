@@ -7,10 +7,8 @@ import { useEffect, useRef } from "react";
  * golden rye field with an earth road running past a great oak (the prefix
  * tree) toward a hazy forest edge, and Scots pines standing in two groups.
  *
- * The world as a garden, as you would see it standing in it: a soft
- * watercolour wash underneath, ASCII on top as the texture, tinted by what it
- * draws (deep green leaves, golden rye, warm bark, blue-grey distance), and
- * cornflowers, poppies and chamomile in the near rye.
+ * Black on white, like one of Shishkin's etchings: thin strokes, pine crowns
+ * drawn as tufts of needles, shadows hatched.
  *
  * The scene is laid out in perspective, things hazier the further they are.
  * The oak is the prefix tree: its trunk is "pr", its boughs spell the rest
@@ -122,29 +120,8 @@ function measureInk(font: string, cw: number, ch: number): Ink {
 
 // ---------- the scene ----------
 
-// what a cell is made of: picks its wash colour and its ink colour
-const M_INK = 0;
-const M_LEAF = 1;
-const M_GRASS = 2;
-const M_FAR = 3;
-const M_PATH = 4;
-const M_BARK = 5;
-const M_CLOUD = 6;
-const M_RYE = 7;
-const M_PINE = 8; // the warm, bare trunks of Scots pines
-
-/** ink colours for the characters, by material: deep green leaves, warm bark, blue-grey distance */
-const INKS: [number, number, number][] = [
-  [23, 23, 23],
-  [26, 46, 30],
-  [54, 70, 38],
-  [80, 98, 110],
-  [104, 88, 70],
-  [50, 38, 28],
-  [80, 98, 110],
-  [122, 90, 32],
-  [96, 54, 30],
-];
+/** one ink, like an etching: black on white */
+const INK = "20, 20, 20";
 
 /** how much of a thing's tone survives the haze, by distance band (far .. near) */
 const HAZE_TONE = [0.5, 0.66, 0.84, 1];
@@ -154,9 +131,13 @@ const LEAF = 1; // rustles
 const BLADE = 2; // near grass, sways
 const WAVE = 3; // rye: wind runs across the field in waves
 const STALK = 4; // a rye stalk up close: drawn | / \\ as it bends
+const NEEDLE = 5; // pine needles: tufts of fine strokes instead of tone
+
+/** needle strokes by tone, light to dark */
+const NEEDLES = [["'", "`", "."], ["/", "\\", "-", "'"], ["/", "\\", "|", "-", "+"], ["x", "+", "*", "#"], ["#", "%", "@"]];
 
 type Label = { text: string; x: number; y: number; strong: boolean };
-type Bloom = { x: number; y: number; size: number; color: string; glyph: string };
+type Bloom = { x: number; y: number; size: number; glyph: string };
 
 type Scene = {
   w: number;
@@ -173,7 +154,6 @@ type Scene = {
   anim: Uint8Array;
   phase: Float32Array;
   clear: Uint8Array;
-  mat: Uint8Array;
   yh: number;
   labels: Label[];
   blooms: Bloom[];
@@ -219,7 +199,6 @@ function buildScene(
     anim: new Uint8Array(n),
     phase: new Float32Array(n),
     clear: new Uint8Array(n),
-    mat: new Uint8Array(n),
     yh: 0,
     labels: [],
     blooms: [],
@@ -251,10 +230,8 @@ function buildScene(
     const j1 = Math.min(rows - 1, Math.ceil(y1 / ch));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fn(i, j, (i + 0.5) * cw, (j + 0.5) * ch);
   };
-  let paint = M_INK; // the material being laid down
   const ink = (i: number, j: number, v: number, fog: number, anim = NONE, phase = 0) => {
     const k = cell(i, j);
-    sc.mat[k] = paint;
     sc.lum[k] = Math.max(0, Math.min(1, v));
     sc.fog[k] = fog;
     sc.glyph[k] = "";
@@ -263,7 +240,6 @@ function buildScene(
   };
   const mark = (i: number, j: number, g: string, fog: number) => {
     const k = cell(i, j);
-    sc.mat[k] = paint;
     sc.glyph[k] = g;
     sc.fog[k] = fog;
     sc.anim[k] = NONE;
@@ -278,9 +254,7 @@ function buildScene(
   })();
 
   /** a ball of leaves, shaded as a lit sphere, lumpy at the edge; tex = px per leaf cluster */
-  const blob = (bx: number, by: number, rx: number, ry: number, seed: number, tex: number, fog: number, weight = 1) => {
-    const was = paint;
-    paint = M_LEAF;
+  const blob = (bx: number, by: number, rx: number, ry: number, seed: number, tex: number, fog: number, weight = 1, kind = LEAF) => {
     cellsIn(bx - rx * 1.2, by - ry * 1.2, bx + rx * 1.2, by + ry * 1.2, (i, j, x, y) => {
       const u = (x - bx) / rx;
       const v = (y - by) / ry;
@@ -298,9 +272,8 @@ function buildScene(
       const val = 0.2 + 0.62 * (1 - lambert) + 0.45 * (leaves - 0.5) + 0.12 * Math.max(0, v);
       // haze: the further away, the lighter, and the flatter its shading
       const far = HAZE_TONE[fog];
-      ink(i, j, (val * far + 0.3 * (1 - far)) * far * weight, fog, LEAF, seed * 0.7 + fbm(i * 0.2, j * 0.2, 5) * 3);
+      ink(i, j, (val * far + 0.3 * (1 - far)) * far * weight, fog, kind, seed * 0.7 + fbm(i * 0.2, j * 0.2, 5) * 3);
     });
-    paint = was;
   };
   const crown = (x: number, y: number, rx: number, ry: number, seed: number, tex: number, fog: number, lumps = 5) => {
     const r = mulberry32(seed);
@@ -315,8 +288,7 @@ function buildScene(
     parts.forEach((p, k) => blob(p.x, p.y, p.rx, p.ry, seed * 13 + k, tex, fog));
   };
   /** a tapering limb drawn with stroke characters; bark when it is wide */
-  const limb = (a: P, c: P, b: P, w0: number, w1: number, fog: number, mat = M_BARK) => {
-    paint = mat;
+  const limb = (a: P, c: P, b: P, w0: number, w1: number, fog: number) => {
     const len = Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - a.x, c.y - a.y);
     const steps = Math.max(6, Math.ceil(len / (Math.min(cw, ch) * 0.5)));
     for (let k = 0; k <= steps; k++) {
@@ -352,13 +324,16 @@ function buildScene(
       const add = Math.min(amount * (1 - d), 0.3 - shaded[k]);
       if (add <= 0) return;
       shaded[k] += add;
-      sc.lum[k] = Math.min(1, sc.lum[k] + add);
+      // hatched, as an etcher would: diagonal strokes, denser toward the middle
+      if ((i + j) % 2 === 0 && hash(i, j, 82) < add * 3) {
+        sc.glyph[k] = "/";
+        sc.anim[k] = NONE;
+      } else sc.lum[k] = Math.min(1, sc.lum[k] + add * 0.5);
     });
   };
 
   // ---------- sky: big and bright, soft cumulus gathering mid-sky ----------
   const cloud = (x: number, y: number) => fbm(x / 340, y / 120, 50) + 0.2 * (1 - Math.abs(y / yh - 0.42) * 2);
-  paint = M_CLOUD;
   cellsIn(0, 0, w, yh, (i, j, x, y) => {
     const c = cloud(x, y);
     const d = c - 0.66;
@@ -369,7 +344,6 @@ function buildScene(
   });
 
   // ---------- the forest edge on the horizon: a hazy saw of spruce tips ----------
-  paint = M_FAR;
   cellsIn(0, yh - 80, w, yh, (i, j, x, y) => {
     const tri = 1 - Math.abs(((x / 11) % 1) * 2 - 1);
     const spike = (4 + 20 * hash(Math.floor(x / 11), 0, 64)) * tri;
@@ -388,17 +362,14 @@ function buildScene(
     const detail = Math.min(1, 4 / z);
     const rx = x - roadC(z);
     if (Math.abs(rx) < roadHalf) {
-      paint = M_PATH;
       const rut = Math.abs(Math.abs(rx) - 0.45) < 0.09;
       ink(i, j, (rut ? 0.32 : 0.07) + 0.12 * hash(i, j, 71) * detail, fog);
       return;
     }
     if (Math.abs(rx) < roadHalf + 0.3) {
-      paint = M_GRASS;
       ink(i, j, 0.3 + 0.22 * (hash(i, j, 74) - 0.5) * detail, fog, BLADE, hash(i, j, 75) * 6.28);
       return;
     }
-    paint = M_RYE;
     const v = 0.2 + 0.14 * (fbm(x * 0.4, z * 0.4, 1) - 0.5) + 0.18 * (hash(i, j, 72) - 0.5) * detail;
     const haze = Math.min(1, z / 60);
     ink(i, j, v * (1 - haze) + 0.12 * haze, fog, WAVE, x * 0.22 + z * 0.5);
@@ -431,7 +402,7 @@ function buildScene(
     const lean = (r() - 0.5) * 0.1 * ht;
     const top = { x: p.x + lean, y: p.y - ht * 0.84 };
     shadow(p.x + ht * 0.08, p.y, ht * 0.14, Math.max(ch, ht * 0.025), 0.22, z);
-    limb({ x: p.x, y: p.y }, { x: p.x + lean * 0.2, y: p.y - ht * 0.45 }, top, tw, tw * 0.45, fog, M_PINE);
+    limb({ x: p.x, y: p.y }, { x: p.x + lean * 0.2, y: p.y - ht * 0.45 }, top, tw, tw * 0.45, fog);
     const clumps: { x: number; y: number; rx: number }[] = [];
     const count = 6 + Math.floor(r() * 3);
     for (let k = 0; k < count; k++) {
@@ -440,11 +411,11 @@ function buildScene(
       const side = k % 2 ? 1 : -1;
       const x2 = top.x + side * ht * (0.04 + r() * 0.12) * (1 - t * 0.6);
       clumps.push({ x: x2, y, rx: ht * (0.1 + r() * 0.07) * (1 - t * 0.4) });
-      limb({ x: top.x - lean * (1 - t) * 0.3, y: y + ht * 0.03 }, { x: (top.x + x2) / 2, y: y + ht * 0.02 }, { x: x2, y }, tw * 0.35, tw * 0.15, fog, M_PINE);
+      limb({ x: top.x - lean * (1 - t) * 0.3, y: y + ht * 0.03 }, { x: (top.x + x2) / 2, y: y + ht * 0.02 }, { x: x2, y }, tw * 0.35, tw * 0.15, fog);
     }
     clumps
       .sort((a, b) => a.y - b.y)
-      .forEach((c, k) => blob(c.x, c.y, c.rx, c.rx * 0.5, seed * 7 + k, Math.max(2.5, p.s * 0.3), Math.max(fog, 2), 1.25));
+      .forEach((c, k) => blob(c.x, c.y, c.rx, c.rx * 0.5, seed * 7 + k, Math.max(2.5, p.s * 0.3), Math.max(fog, 2), 1.25, NEEDLE));
   };
 
   // pines in two groups, after Shishkin's "Rye": a cluster on the left, a pair on the right
@@ -489,7 +460,6 @@ function buildScene(
         if (i < 0 || i >= cols) return;
         const fog = fogAt(z);
         const top = p.y - ht * p.s;
-        paint = M_RYE;
         for (let y = top + ch; y < p.y; y += ch) {
           const j = Math.floor(y / ch);
           if (j < 0 || j >= rows) continue;
@@ -507,13 +477,11 @@ function buildScene(
     if (Math.abs(x - roadC(z)) < roadHalf + 0.3) continue;
     const p = toScreen(x, z);
     const size = Math.max(4, Math.min(14, p.s * 0.1));
-    const color = ["#4a6fc4", "#4a6fc4", "#c8473b", "#f6f1e6"][Math.floor(rand() * 4)];
     sc.blooms.push({
       x: p.x,
       y: p.y - (0.3 + rand() * 0.6) * p.s * 0.9,
       size,
-      color,
-      glyph: size > 8 ? ["✿", "❀", "✽"][Math.floor(rand() * 3)] : "•",
+      glyph: size > 8 ? ["✽", "✻", "*"][Math.floor(rand() * 3)] : "·",
     });
   }
 
@@ -585,105 +553,6 @@ function buildScene(
 
 const FOG_ALPHA = [0.34, 0.52, 0.74, 1];
 
-/** the soft painted layer under the characters, like a watercolour wash under ink */
-function paintWash(sc: Scene, dpr: number) {
-  const { cols, rows, cw, ch, w, h } = sc;
-  const small = document.createElement("canvas");
-  small.width = cols;
-  small.height = rows;
-  const sx = small.getContext("2d")!;
-  const img = sx.createImageData(cols, rows);
-  const haze = [168, 182, 188];
-  for (let k = 0; k < cols * rows; k++) {
-    if (sc.clear[k]) continue;
-    const v = sc.lum[k];
-    const near = sc.fog[k] / 3;
-    let c: number[] | null = null;
-    let a = 0;
-    switch (sc.mat[k]) {
-      case M_LEAF:
-        c = [86, 118, 84];
-        a = (0.2 + 0.55 * v) * (0.6 + 0.4 * near);
-        break;
-      case M_GRASS:
-        c = [146, 166, 106];
-        a = 0.14 + 0.5 * v;
-        break;
-      case M_FAR:
-        c = [156, 174, 182];
-        a = 0.16 + 0.5 * v;
-        break;
-      case M_PATH:
-        c = [224, 207, 176];
-        a = 0.55;
-        break;
-      case M_BARK:
-        c = [112, 92, 72];
-        a = 0.55;
-        break;
-      case M_CLOUD: {
-        // white bodies, a cool grey in the shaded undersides
-        const g = Math.min(1, v * 3.5);
-        c = [255 - 50 * g, 255 - 44 * g, 255 - 34 * g];
-        a = Math.min(0.85, v * 9);
-        break;
-      }
-      case M_RYE:
-        c = [228, 190, 108];
-        a = 0.3 + 0.55 * v;
-        break;
-      case M_PINE:
-        c = [184, 116, 70];
-        a = 0.62;
-        break;
-    }
-    if (!c) continue;
-    const m = (1 - near) * 0.7; // distance turns everything toward the haze
-    img.data[k * 4] = c[0] + (haze[0] - c[0]) * m;
-    img.data[k * 4 + 1] = c[1] + (haze[1] - c[1]) * m;
-    img.data[k * 4 + 2] = c[2] + (haze[2] - c[2]) * m;
-    img.data[k * 4 + 3] = Math.round(Math.min(1, a) * 255);
-  }
-  sx.putImageData(img, 0, 0);
-
-  const wash = document.createElement("canvas");
-  wash.width = Math.round(w * dpr);
-  wash.height = Math.round(h * dpr);
-  const wx = wash.getContext("2d")!;
-  wx.scale(dpr, dpr);
-
-  // a pale sky, warm light low on the horizon behind the tree
-  const yh = sc.yh;
-  const sky = wx.createLinearGradient(0, 0, 0, h * 0.5);
-  sky.addColorStop(0, "rgba(160, 192, 220, 0.55)");
-  sky.addColorStop(1, "rgba(176, 202, 222, 0)");
-  wx.fillStyle = sky;
-  wx.fillRect(0, 0, w, h * 0.5);
-  const glow = wx.createRadialGradient(w / 2, yh, 0, w / 2, yh, Math.max(w, h) * 0.55);
-  glow.addColorStop(0, "rgba(255, 228, 180, 0.6)");
-  glow.addColorStop(1, "rgba(255, 228, 180, 0)");
-  wx.fillStyle = glow;
-  wx.fillRect(0, 0, w, h);
-
-  // the wash itself: blurred, so it reads painted rather than gridded
-  wx.imageSmoothingEnabled = true;
-  wx.imageSmoothingQuality = "high";
-  if ("filter" in wx) wx.filter = `blur(${Math.round(ch * 0.7)}px)`;
-  wx.drawImage(small, 0, 0, cols * cw, rows * ch);
-  wx.filter = "none";
-
-  // blossoms bleed a little colour around them
-  for (const b of sc.blooms) {
-    const r = b.size * 1.1;
-    const g = wx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
-    g.addColorStop(0, b.color + "66");
-    g.addColorStop(1, b.color + "00");
-    wx.fillStyle = g;
-    wx.fillRect(b.x - r, b.y - r, r * 2, r * 2);
-  }
-  return wash;
-}
-
 export default function AsciiGarden({ className = "" }: { className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -698,7 +567,6 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
     let scene: Scene | null = null;
     let ink: Ink | null = null;
     let atlas: HTMLCanvasElement | null = null;
-    let wash: HTMLCanvasElement | null = null;
     let family = "monospace";
     let dpr = 1;
     let labelFont = "";
@@ -721,7 +589,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       const mobile = w < 640;
       const size = mobile ? 8 : 10;
       family = getComputedStyle(canvas).fontFamily || "monospace";
-      const font = `${size}px ${family}`;
+      const font = `300 ${size}px ${family}`; // thin strokes, like lines scratched with an etching needle
       labelFont = `${mobile ? 11 : 13}px ${family}`;
       edgeFont = `${mobile ? 10 : 11}px ${family}`;
       ctx.font = font;
@@ -735,19 +603,16 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       const chD = Math.ceil(ch * dpr);
       atlas = document.createElement("canvas");
       atlas.width = cwD * ink.chars.length;
-      atlas.height = chD * FOG_ALPHA.length * INKS.length;
+      atlas.height = chD * FOG_ALPHA.length;
       const a = atlas.getContext("2d")!;
       a.scale(dpr, dpr);
       a.font = font;
       a.textAlign = "center";
       a.textBaseline = "middle";
-      INKS.forEach(([r, g, b], m) =>
-        FOG_ALPHA.forEach((al, f) => {
-          const row = m * FOG_ALPHA.length + f;
-          a.fillStyle = `rgba(${r}, ${g}, ${b}, ${al * 0.92})`;
-          ink!.chars.forEach((c, k) => a.fillText(c, (k * cwD) / dpr + cw / 2, (row * chD) / dpr + ch / 2));
-        }),
-      );
+      FOG_ALPHA.forEach((al, row) => {
+        a.fillStyle = `rgba(${INK}, ${al})`;
+        ink!.chars.forEach((c, k) => a.fillText(c, (k * cwD) / dpr + cw / 2, (row * chD) / dpr + ch / 2));
+      });
 
       const clearings = Array.from(host.querySelectorAll<HTMLElement>("[data-garden-clear]"))
         .filter((el) => el.offsetParent !== null)
@@ -760,7 +625,6 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
         groundEl && groundEl.offsetParent !== null ? groundEl.getBoundingClientRect().bottom - rect.top : null;
 
       scene = buildScene(w, h, cw, ch, clearings, groundTop);
-      wash = paintWash(scene, dpr);
       draw(performance.now());
     };
 
@@ -772,7 +636,6 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       const chD = Math.ceil(sc.ch * dpr);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (wash) ctx.drawImage(wash, 0, 0);
 
       const pcol = pointer.x / sc.cw;
       const prow = pointer.y / sc.ch;
@@ -798,23 +661,26 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
                 if (d2 < 1) gust = (1 - d2) * pointer.energy;
               }
               const wind = Math.sin(i * 0.05 - t * 0.8) * 0.5 + 0.5;
-              if (an === LEAF) v += Math.sin(sc.phase[k] + t * (1.3 + gust * 7)) * (0.04 + wind * 0.05 + gust * 0.2);
+              if (an === LEAF || an === NEEDLE) v += Math.sin(sc.phase[k] + t * (1.3 + gust * 7)) * (0.04 + wind * 0.05 + gust * 0.2);
               else if (an === WAVE) v += Math.sin(sc.phase[k] - t * 1.3) * 0.09 + gust * 0.12;
               else if (an === STALK) {
                 // mostly upright; a stalk leans only at the crest of a gust
                 const sway = Math.sin(sc.phase[k] - t * 1.1) + gust * 1.5;
                 ci = ink.index.get(sway > 0.85 ? "/" : sway < -0.92 ? "\\" : "|") ?? 0;
-                const row = sc.mat[k] * FOG_ALPHA.length + sc.fog[k];
+                const row = sc.fog[k];
                 ctx.drawImage(atlas, ci * cwD, row * chD, cwD, chD, Math.round(i * sc.cw * dpr), Math.round(j * sc.ch * dpr), cwD, chD);
                 continue;
               } else v += Math.sin(sc.phase[k] + t * (1.5 + gust * 6) + wind * 2) * (0.06 + gust * 0.15);
             }
             v = 0.9 * Math.max(0, v) ** 1.6; // paper should dominate
             if (v < 0.02) continue;
-            ci = ink.lut[Math.min(63, Math.round(v * 63))];
+            if (an === NEEDLE) {
+              const set = NEEDLES[Math.min(NEEDLES.length - 1, Math.floor(v * NEEDLES.length * 1.15))];
+              ci = ink.index.get(set[Math.floor(hash(i, j, 81) * set.length)]) ?? 0;
+            } else ci = ink.lut[Math.min(63, Math.round(v * 63))];
           }
           if (ci === 0 && !g) continue;
-          const row = sc.mat[k] * FOG_ALPHA.length + sc.fog[k];
+          const row = sc.fog[k];
           ctx.drawImage(atlas, ci * cwD, row * chD, cwD, chD, Math.round(i * sc.cw * dpr), Math.round(j * sc.ch * dpr), cwD, chD);
         }
       }
@@ -826,7 +692,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       // blossoms, nodding a little in the wind
       for (const b of sc.blooms) {
         ctx.font = `${Math.round(b.size)}px ${family}`;
-        ctx.fillStyle = b.color;
+        ctx.fillStyle = `rgba(${INK}, 0.7)`;
         const nod = reduced ? 0 : Math.sin(t * 1.4 + b.x * 0.05) * b.size * 0.08;
         ctx.fillText(b.glyph, b.x + nod, b.y);
       }
@@ -847,7 +713,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
         if (l.strong) {
           // the words: a soft rounded plate
           const tw = ctx.measureText(l.text).width;
-          ctx.fillStyle = "rgba(250, 247, 238, 0.78)";
+          ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
           ctx.beginPath();
           ctx.roundRect(l.x - tw / 2 - 6, l.y - 9, tw + 12, 18, 9);
           ctx.fill();
@@ -856,9 +722,9 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
           // the pieces of words along the boughs: a halo, no plate
           ctx.lineWidth = 4;
           ctx.lineJoin = "round";
-          ctx.strokeStyle = "rgba(250, 247, 238, 0.85)";
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
           ctx.strokeText(l.text, l.x, l.y + 0.5);
-          ctx.fillStyle = "rgba(60, 52, 42, 0.75)";
+          ctx.fillStyle = `rgba(${INK}, 0.6)`;
         }
         ctx.fillText(l.text, l.x, l.y + 0.5);
       }

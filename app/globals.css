@@ -33,9 +33,9 @@ a {
   transform: rotate(90deg);
 }
 
-/* the ground of the ASCII garden: warm paper under black glyphs */
+/* the ASCII garden is an etching: black lines on white */
 .hero-garden {
-  background: radial-gradient(ellipse at 30% 20%, #f7f4ea 0%, #efeadb 70%, #e9e3d0 100%);
+  background: #fff;
 }
 
 /* thin horizontal traces, like the tree's circuit roots */
