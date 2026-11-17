@@ -3,24 +3,25 @@
 import { useEffect, useRef } from "react";
 
 /*
- * A Japanese garden at the edge of a forest, in black on white: needles as
- * free strokes, solid things as a grid of characters.
+ * A pine bonsai in black on white: needles as free strokes, the rest as a
+ * grid of characters.
  *
- * Behind: pale hills and a soft row of spruces, taller ones closing in at the
- * sides, a mossy bank where the garden begins. In the garden: cloud-pruned
- * pines (niwaki) with curving trunks and flat pads of needles, dark on the
- * underside; a stone lantern; a group of mossy rocks in raked rings; stepping
- * stones; raked gravel in long lines that part around the rings.
+ * One tree has the stage: an informal upright pine with an S-curved, tapering
+ * trunk and surface roots, six branches alternating up the trunk (the lowest
+ * and longest on the left) and an apex, each carrying a pad of foliage with a
+ * domed top and a flat underside. Needles grow in small fanned tufts, open and
+ * light on top, close and dark underneath. A shallow pot on two feet, moss on
+ * the soil, a pale sun behind.
  *
- * Needles are drawn as short strokes off the character grid and sway in a
- * slow wind. Trunks, rocks, the lantern and stones are painted on a hidden
- * canvas and read as characters: edges become | / \ - by their direction (a
- * structure tensor on the full painting), tone becomes the symbol of matching
- * measured ink. The characters are drawn once.
+ * Needles and moss are short strokes off the character grid and sway a little.
+ * The trunk, branches, pot and sun are painted on a hidden canvas and read as
+ * characters: edges become | / \ - by their direction (a structure tensor on
+ * the full painting), tone becomes the symbol of matching measured ink. The
+ * characters are drawn once.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
- * garden stops being seen (on phones, the hero card).
+ * picture stops being seen (on phones, the hero card).
  */
 
 // ---------- deterministic noise ----------
@@ -90,28 +91,20 @@ function measureInk(font: string, cw: number, ch: number): Ink {
   return { chars, lut, index };
 }
 
-// ---------- the painting: a Japanese garden at the edge of a forest ----------
+// ---------- the painting: a pine bonsai ----------
 
 type Label = { text: string; x: number; y: number };
 
-/** a needle or a line of raked gravel: a short free stroke, not on the character grid */
-type Stroke = {
-  x: number;
-  y: number;
-  len: number;
-  ang: number;
-  alpha: number;
-  sway: number;
-  kind?: "bg" | "fg" | "ground";
-};
+/** a needle: a short free stroke, not on the character grid */
+type Stroke = { x: number; y: number; len: number; ang: number; alpha: number; sway: number };
 
 type Painting = {
-  /** ink per pixel of the hidden canvas (trunks, rocks, lantern, stones), 0 paper .. 1 black */
+  /** ink per pixel of the hidden canvas (trunk, branches, pot, sun), 0 paper .. 1 black */
   ink: Float32Array;
   W: number;
   H: number;
   labels: Label[];
-  /** needles and gravel, drawn as strokes over the characters */
+  /** needles and moss, drawn as strokes over the characters */
   strokes: Stroke[];
 };
 
@@ -125,421 +118,253 @@ function paintForest(w: number, h: number, ground: number): Painting {
   g.fillStyle = "#fff";
   g.fillRect(0, 0, w, h);
 
-  const rand = mulberry32(31);
+  const rand = mulberry32(8);
   const mobile = w < 640;
   const grey = (ink: number) => {
     const v = Math.round(255 * (1 - Math.max(0, Math.min(1, ink))));
     return `rgb(${v},${v},${v})`;
   };
-  const line = Math.max(1.4, Math.min(w, h) / 420); // outline weight
-  const labels: Label[] = [];
+  const line = Math.max(1.4, Math.min(w, h) / 420);
   const strokes: Stroke[] = [];
   g.lineJoin = "round";
   g.lineCap = "round";
 
-  /**
-   * a spruce: a trunk for the character grid, and tiers of branches made of
-   * needle strokes that droop outward, dense in each tier's shaded underside
-   * and sparse on its lit upper side and on the right
-   */
-  const spruce = (x: number, base: number, height: number, strength: number, trunk: boolean) => {
-    const width = height * 0.42;
-    const trunkH = height * 0.1;
-    if (trunk) {
-      // the trunk runs up under the branches: the character grid shows it between needles
-      const tw = Math.max(3, width * 0.07);
-      const tg = g.createLinearGradient(x - tw, 0, x + tw, 0);
-      tg.addColorStop(0, grey(0.9 * strength));
-      tg.addColorStop(1, grey(0.55 * strength));
-      g.fillStyle = tg;
-      g.beginPath();
-      g.moveTo(x - tw, base);
-      g.lineTo(x - tw * 0.3, base - height * 0.85);
-      g.lineTo(x + tw * 0.3, base - height * 0.85);
-      g.lineTo(x + tw, base);
-      g.closePath();
-      g.fill();
-    }
-    const tiers = 7 + Math.floor(rand() * 3);
-    const top = base - height;
-    const step = Math.max(2.2, height / 190); // spacing between needles
-    const len0 = Math.max(3, height / 55);
-    for (let t = 0; t < tiers; t++) {
-      const f = t / tiers; // 0 bottom .. 1 top
-      const yb = base - trunkH - f * (height - trunkH) * 0.92; // the tier's lower edge
-      const hw = (width / 2) * (1 - f) ** 0.7 + width * 0.04; // a fuller, rounder outline
-      const th = ((height - trunkH) / tiers) * 1.9;
-      const apex = Math.max(top, yb - th);
-      const path = new Path2D();
-      path.moveTo(x, apex);
-      path.quadraticCurveTo(x - hw * 0.45, yb - th * 0.45, x - hw, yb + th * 0.12);
-      // soft scallops along the lower edge rather than sharp teeth
-      const teeth = Math.max(3, Math.round(hw / (height * 0.04)));
-      for (let q = 1; q <= teeth; q++) {
-        const px = x - hw + (2 * hw * q) / teeth;
-        const sag = th * 0.12 * Math.sin((Math.PI * q) / teeth);
-        path.quadraticCurveTo(px - hw / teeth, yb + th * (0.22 + rand() * 0.06) + sag, px, yb + th * 0.06 + sag);
-      }
-      path.quadraticCurveTo(x + hw * 0.45, yb - th * 0.45, x, apex);
-      path.closePath();
-      for (let py = apex; py < yb + th * 0.3; py += step) {
-        for (let px = x - hw; px < x + hw; px += step) {
-          const sx = px + (rand() - 0.5) * step;
-          const sy = py + (rand() - 0.5) * step;
-          if (!g.isPointInPath(path, sx, sy)) continue;
-          const v = Math.min(1, Math.max(0, (sy - apex) / (yb - apex))); // 0 top of tier .. 1 its lower edge
-          const u = (sx - x) / hw; // -1 left .. 1 right
-          const dense = (0.22 + 0.78 * v * v) * (1 - 0.4 * Math.max(0, u));
-          if (rand() > dense) continue;
-          strokes.push({
-            x: sx,
-            y: sy,
-            len: len0 * (0.6 + rand() * 0.7) * (0.7 + 0.5 * v),
-            ang: Math.PI / 2 - u * 0.45 + (rand() - 0.5) * 0.4, // hanging, leaning a little outward
-            alpha: strength * (0.35 + 0.65 * dense),
-            sway: 0.05 + 0.05 * strength,
-          });
-        }
-      }
-    }
-    // the leader at the very top
-    for (let q = 0; q < 4; q++)
-      strokes.push({ x, y: top + q * len0 * 0.6, len: len0, ang: Math.PI / 2, alpha: strength, sway: 0.04 });
-  };
+  // size and place: the tree has the stage to itself
+  const y0 = ground * (mobile ? 0.94 : 0.93); // the pot stands here
+  const S = mobile ? Math.min(w * 0.95, (y0 - 160) * 0.92) : Math.min(w * 0.5, (y0 - 170) * 0.9);
+  const cx = w * (mobile ? 0.5 : 0.56);
+  const potW = S * 0.72;
+  const potH = S * 0.11;
+  const soil = y0 - potH;
 
-  /** a stroke that does not sway: raked gravel, outlines drawn with needles */
-  const still = (x: number, y: number, len: number, ang: number, alpha: number, kind: Stroke["kind"]) =>
-    strokes.push({ x, y, len, ang, alpha, sway: 0, kind });
+  // a pale sun behind the tree
+  g.beginPath();
+  g.arc(cx + S * 0.1, soil - S * 0.62, S * 0.36, 0, Math.PI * 2);
+  g.fillStyle = grey(0.07);
+  g.fill();
 
-  /**
-   * a cloud-pruned pine (niwaki): a curving trunk for the character grid and
-   * flat pads of needles at the ends of its branches, dark on the underside
-   */
-  const pads: Path2D[] = [];
-  const niwaki = (x: number, base: number, height: number, lean: number, count: number) => {
-    const r = mulberry32(Math.round(x + height));
-    const P = [
-      { x, y: base },
-      { x: x + lean * height * 0.35, y: base - height * 0.3 },
-      { x: x - lean * height * 0.25, y: base - height * 0.62 },
-      { x: x + lean * height * 0.12, y: base - height * 0.9 },
-    ];
-    const at = (t: number) => {
-      const u = 1 - t;
-      return {
-        x: u * u * u * P[0].x + 3 * u * u * t * P[1].x + 3 * u * t * t * P[2].x + t * t * t * P[3].x,
-        y: u * u * u * P[0].y + 3 * u * u * t * P[1].y + 3 * u * t * t * P[2].y + t * t * t * P[3].y,
-      };
+  // ---------- the pot: shallow, rectangular, on two feet ----------
+  const px0 = cx - potW / 2;
+  g.strokeStyle = grey(1);
+  g.lineWidth = line;
+  for (const fx of [0.14, 0.86]) {
+    g.fillStyle = grey(0.5);
+    g.fillRect(px0 + potW * fx - S * 0.03, y0 - S * 0.005, S * 0.06, S * 0.025);
+    g.strokeRect(px0 + potW * fx - S * 0.03, y0 - S * 0.005, S * 0.06, S * 0.025);
+  }
+  g.beginPath();
+  g.moveTo(px0, soil);
+  g.lineTo(px0 + potW, soil);
+  g.lineTo(px0 + potW - S * 0.035, y0);
+  g.lineTo(px0 + S * 0.035, y0);
+  g.closePath();
+  const pg = g.createLinearGradient(px0, 0, px0 + potW, 0);
+  pg.addColorStop(0, grey(0.42));
+  pg.addColorStop(0.7, grey(0.3));
+  pg.addColorStop(1, grey(0.18));
+  g.fillStyle = pg;
+  g.fill();
+  g.stroke();
+  // the rim
+  g.fillStyle = grey(0.5);
+  g.fillRect(px0 - S * 0.012, soil - S * 0.018, potW + S * 0.024, S * 0.022);
+  g.strokeRect(px0 - S * 0.012, soil - S * 0.018, potW + S * 0.024, S * 0.022);
+  // a soft shadow under it
+  g.beginPath();
+  g.ellipse(cx + S * 0.03, y0 + S * 0.03, potW * 0.62, S * 0.018, 0, 0, Math.PI * 2);
+  g.fillStyle = grey(0.12);
+  g.fill();
+
+  // ---------- the trunk: an S-curve, tapering, with surface roots ----------
+  const P = [
+    { x: cx - S * 0.05, y: soil - S * 0.01 },
+    { x: cx + S * 0.16, y: soil - S * 0.24 },
+    { x: cx - S * 0.2, y: soil - S * 0.48 },
+    { x: cx + S * 0.03, y: soil - S * 0.86 },
+  ];
+  const at = (t: number) => {
+    const u = 1 - t;
+    return {
+      x: u * u * u * P[0].x + 3 * u * u * t * P[1].x + 3 * u * t * t * P[2].x + t * t * t * P[3].x,
+      y: u * u * u * P[0].y + 3 * u * u * t * P[1].y + 3 * u * t * t * P[2].y + t * t * t * P[3].y,
     };
-    const w0 = height * 0.05;
-    const w1 = height * 0.012;
-    // trunk, tapering, with a little root flare
-    const left: { x: number; y: number }[] = [];
-    const right: { x: number; y: number }[] = [];
-    for (let s = 0; s <= 30; s++) {
-      const t = s / 30;
-      const p = at(t);
-      const q = at(Math.min(1, t + 0.01));
-      const p0 = at(Math.max(0, t - 0.01));
-      const dx = q.x - p0.x;
-      const dy = q.y - p0.y;
-      const l = Math.hypot(dx, dy) || 1;
-      const wd = w1 + (w0 - w1) * (1 - t) ** 1.4 + (t < 0.08 ? (0.08 - t) * height * 0.5 : 0);
-      left.push({ x: p.x - (dy / l) * -wd, y: p.y + (dx / l) * -wd });
-      right.push({ x: p.x + (dy / l) * -wd, y: p.y - (dx / l) * -wd });
-    }
-    g.beginPath();
-    left.forEach((p, s) => (s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
-    right.reverse().forEach((p) => g.lineTo(p.x, p.y));
-    g.closePath();
-    const tg = g.createLinearGradient(x - w0, 0, x + w0, 0);
-    tg.addColorStop(0, grey(0.55));
-    tg.addColorStop(1, grey(0.3));
-    g.fillStyle = tg;
-    g.fill();
-    g.strokeStyle = grey(1);
-    g.lineWidth = line;
-    g.stroke();
-
-    const len0 = Math.max(2.6, height / 75);
-    const step = Math.max(2.2, height / 200);
-    const padAt = (cx: number, cy: number, rx: number, ry: number) => {
-      // the pad: a few overlapping ellipses, like a cloud
-      const path = new Path2D();
-      const lumps = 4;
-      for (let k = 0; k < lumps; k++) {
-        const u = (k / (lumps - 1) - 0.5) * 2;
-        path.ellipse(
-          cx + u * rx * 0.55,
-          cy - (1 - u * u) * ry * 0.35,
-          rx * 0.5,
-          ry * (0.75 + 0.25 * (1 - u * u)),
-          0,
-          0,
-          Math.PI * 2,
-        );
-      }
-      pads.push(path);
-      for (let py = cy - ry * 1.4; py < cy + ry * 1.1; py += step) {
-        for (let px = cx - rx * 1.1; px < cx + rx * 1.1; px += step) {
-          const sx = px + (r() - 0.5) * step;
-          const sy = py + (r() - 0.5) * step;
-          if (!g.isPointInPath(path, sx, sy)) continue;
-          const v = Math.min(1, Math.max(0, (sy - (cy - ry * 1.2)) / (ry * 2.2))); // 0 top .. 1 underside
-          const u = (sx - cx) / rx;
-          const dense = (0.38 + 0.62 * v ** 1.4) * (1 - 0.3 * Math.max(0, u));
-          if (r() > dense) continue;
-          strokes.push({
-            x: sx,
-            y: sy,
-            len: len0 * (0.7 + r() * 0.6),
-            ang: -Math.PI / 2 + u * 0.6 + (r() - 0.5) * 1.1, // needles, softly every way, leaning out
-            alpha: 0.3 + 0.65 * v,
-            sway: 0.03,
-            kind: "fg",
-          });
-        }
-      }
-      // the underside: a dark, softly scalloped edge
-      for (let px = cx - rx; px < cx + rx; px += step * 0.8) {
-        const u = (px - cx) / rx;
-        const y = cy + ry * 0.75 * Math.sqrt(Math.max(0, 1 - u * u)) + Math.sin(u * 9) * ry * 0.08;
-        strokes.push({ x: px, y, len: len0 * 0.8, ang: (r() - 0.5) * 0.9, alpha: 0.6, sway: 0.03, kind: "fg" });
-      }
-    };
-    // branches out to the pads, alternating sides, the top pad on the apex
-    for (let k = 0; k < count; k++) {
-      const f = 0.32 + (0.6 * k) / Math.max(1, count - 1);
-      const p = at(f);
-      const side = (k % 2 ? 1 : -1) * (lean < 0 ? -1 : 1);
-      const reach = height * (0.2 + 0.12 * (1 - f));
-      const end = { x: p.x + side * reach, y: p.y - height * (0.04 + r() * 0.03) };
-      g.strokeStyle = grey(0.85);
-      g.lineWidth = Math.max(1.5, w0 * 0.4 * (1 - f * 0.6));
-      g.beginPath();
-      g.moveTo(p.x, p.y);
-      g.quadraticCurveTo(p.x + side * reach * 0.5, p.y + height * 0.01, end.x, end.y);
-      g.stroke();
-      const rx = height * (0.15 + 0.08 * (1 - f));
-      padAt(end.x + side * rx * 0.15, end.y - rx * 0.16, rx, rx * 0.42);
-    }
-    const top = at(1);
-    padAt(top.x, top.y - height * 0.04, height * 0.12, height * 0.055);
   };
-
-  /** a stone lantern (tōrō): slab, post, platform, light box with a window, wide roof, finial */
-  const lantern = (x: number, base: number, s: number) => {
-    const part = (cx: number, y: number, wd: number, ht: number, ink: number) => {
-      const lg = g.createLinearGradient(cx - wd / 2, 0, cx + wd / 2, 0);
-      lg.addColorStop(0, grey(ink + 0.15));
-      lg.addColorStop(1, grey(ink - 0.15));
-      g.fillStyle = lg;
-      g.fillRect(cx - wd / 2, y - ht, wd, ht);
-      g.strokeStyle = grey(1);
-      g.lineWidth = line;
-      g.strokeRect(cx - wd / 2, y - ht, wd, ht);
-    };
-    let y = base;
-    part(x, y, s * 0.42, s * 0.06, 0.45);
-    y -= s * 0.06;
-    part(x, y, s * 0.13, s * 0.34, 0.5);
-    y -= s * 0.34;
-    part(x, y, s * 0.36, s * 0.06, 0.45);
-    y -= s * 0.06;
-    part(x, y, s * 0.26, s * 0.2, 0.5);
-    g.fillStyle = "#fff";
-    g.fillRect(x - s * 0.06, y - s * 0.16, s * 0.12, s * 0.12); // the window
-    g.strokeRect(x - s * 0.06, y - s * 0.16, s * 0.12, s * 0.12);
-    y -= s * 0.2;
-    // roof with upturned corners
-    g.beginPath();
-    g.moveTo(x - s * 0.36, y - s * 0.01);
-    g.quadraticCurveTo(x - s * 0.2, y - s * 0.03, x - s * 0.1, y - s * 0.14);
-    g.lineTo(x + s * 0.1, y - s * 0.14);
-    g.quadraticCurveTo(x + s * 0.2, y - s * 0.03, x + s * 0.36, y - s * 0.01);
-    g.lineTo(x + s * 0.3, y + s * 0.015);
-    g.lineTo(x - s * 0.3, y + s * 0.015);
-    g.closePath();
-    const rg = g.createLinearGradient(x - s * 0.36, 0, x + s * 0.36, 0);
-    rg.addColorStop(0, grey(0.7));
-    rg.addColorStop(1, grey(0.4));
-    g.fillStyle = rg;
-    g.fill();
-    g.stroke();
-    g.beginPath();
-    g.arc(x, y - s * 0.17, s * 0.035, 0, Math.PI * 2);
-    g.fillStyle = grey(0.55);
-    g.fill();
-    g.stroke();
-  };
-
-  /** a rock: an irregular rounded stone, lit from the right, with moss on top */
-  const rock = (x: number, base: number, wd: number, ht: number) => {
-    const r = mulberry32(Math.round(x * 7 + ht));
-    const pts: { x: number; y: number }[] = [];
-    for (let k = 0; k <= 9; k++) {
-      const a = Math.PI + (Math.PI * k) / 9;
-      const j = 0.8 + r() * 0.3;
-      pts.push({ x: x + Math.cos(a) * wd * 0.5 * j, y: base + Math.sin(a) * ht * j });
-    }
-    g.beginPath();
-    g.moveTo(x - wd * 0.55, base);
-    pts.forEach((p) => g.lineTo(p.x, p.y));
-    g.lineTo(x + wd * 0.55, base);
-    g.closePath();
-    const rg = g.createLinearGradient(x - wd / 2, 0, x + wd / 2, 0);
-    rg.addColorStop(0, grey(0.72));
-    rg.addColorStop(1, grey(0.32));
-    g.fillStyle = rg;
-    g.fill();
-    g.strokeStyle = grey(1);
-    g.lineWidth = line;
-    g.stroke();
-    // moss: short tufts along the top
-    for (let k = 0; k < wd * 0.9; k++) {
-      const u = r() * 0.8 + 0.1;
-      const a = Math.PI + Math.PI * u;
-      strokes.push({
-        x: x + Math.cos(a) * wd * 0.45,
-        y: base + Math.sin(a) * ht * 0.9 - r() * 3,
-        len: 3 + r() * 3,
-        ang: -Math.PI / 2 + (r() - 0.5) * 1.2,
-        alpha: 0.75,
-        sway: 0.02,
-        kind: "fg",
-      });
-    }
-  };
-
-  // ---------- the far forest: pale hills, then a soft row of spruces ----------
-  const edge = ground * (mobile ? 0.52 : 0.5); // where the forest meets the garden
-  for (const [k, ink] of [
-    [0.24, 0.06],
-    [0.15, 0.1],
+  const w0 = S * 0.07;
+  const w1 = S * 0.01;
+  const left: { x: number; y: number }[] = [];
+  const right: { x: number; y: number }[] = [];
+  for (let s = 0; s <= 40; s++) {
+    const t = s / 40;
+    const p = at(t);
+    const q = at(Math.min(1, t + 0.01));
+    const p0 = at(Math.max(0, t - 0.01));
+    const l = Math.hypot(q.x - p0.x, q.y - p0.y) || 1;
+    const nx = -(q.y - p0.y) / l;
+    const ny = (q.x - p0.x) / l;
+    const wd = w1 + (w0 - w1) * (1 - t) ** 1.3 + (t < 0.07 ? ((0.07 - t) / 0.07) ** 2 * S * 0.06 : 0);
+    left.push({ x: p.x - nx * wd, y: p.y - ny * wd });
+    right.push({ x: p.x + nx * wd, y: p.y + ny * wd });
+  }
+  // surface roots (nebari) spreading over the soil
+  for (const [dx, len] of [
+    [-1, 0.2],
+    [1, 0.17],
+    [-1, 0.1],
   ] as const) {
     g.beginPath();
-    g.moveTo(0, edge);
-    for (let x = 0; x <= w; x += 8)
-      g.lineTo(x, edge - ground * k * (0.55 + 0.45 * Math.sin(x / (w * 0.22) + k * 20) * Math.sin(x / (w * 0.09) + k)));
-    g.lineTo(w, edge);
+    g.moveTo(P[0].x + dx * w0 * 0.6, soil - S * 0.03);
+    g.quadraticCurveTo(P[0].x + dx * S * len * 0.5, soil - S * 0.005, P[0].x + dx * S * len, soil);
+    g.lineTo(P[0].x + dx * w0 * 0.2, soil);
     g.closePath();
-    g.fillStyle = grey(ink);
+    g.fillStyle = grey(0.45);
     g.fill();
-  }
-  for (let x = -10; x < w + 10; ) {
-    const ht = ground * (0.14 + rand() * 0.12);
-    spruce(x, edge + ground * 0.01, ht, 0.32, false);
-    x += ht * (0.3 + rand() * 0.25);
-  }
-  // taller spruces at the sides, the forest closing in
-  const sides = mobile ? [0.02, 0.98] : [0.03, 0.12, 0.9, 0.98];
-  for (const fx of sides) spruce(fx * w, edge + ground * 0.08, ground * (0.48 + rand() * 0.12), 0.5, false);
-  for (const st of strokes) st.kind = "bg";
-
-  // a mossy bank where the garden begins
-  for (let x = 0; x < w; x += 3) {
-    const y = edge + ground * 0.03 + Math.sin(x / 70) * 3;
-    for (let k = 0; k < 2; k++)
-      still(x + rand() * 3, y + rand() * 5, 3 + rand() * 4, -Math.PI / 2 + (rand() - 0.5) * 1.3, 0.45, "bg");
-  }
-
-  // ---------- the garden ----------
-  const gTop = edge + ground * 0.08;
-  const L = mobile
-    ? {
-        pine: { x: 0.42, base: 0.9, ht: 0.56, lean: -1, pads: 4 },
-        small: null,
-        lantern: { x: 0.84, base: 0.84, s: 0.22 },
-        rocks: { x: 0.74, base: 0.97, s: 0.045 },
-      }
-    : {
-        pine: { x: 0.44, base: 0.9, ht: 0.64, lean: -1, pads: 5 },
-        small: { x: 0.9, base: 0.84, ht: 0.34, lean: 1, pads: 3 },
-        lantern: { x: 0.77, base: 0.8, s: 0.24 },
-        rocks: { x: 0.6, base: 0.88, s: 0.06 },
-      };
-
-  // stepping stones running into the garden toward the lantern
-  const stones: { x: number; y: number; rx: number; ry: number }[] = [];
-  for (let k = 0; k < 5; k++) {
-    const t = k / 4;
-    const y = ground * (1.0 - t * (1.0 - L.lantern.base - 0.02));
-    const x = w * (0.55 + (L.lantern.x - 0.55) * t) + Math.sin(k * 2.1) * w * 0.02;
-    const rx = ground * (0.05 - t * 0.025);
-    stones.push({ x, y, rx, ry: rx * 0.35 });
-  }
-  for (const s of stones) {
-    g.beginPath();
-    g.ellipse(s.x, s.y, s.rx, s.ry, 0, 0, Math.PI * 2);
-    g.fillStyle = grey(0.18);
-    g.fill();
-    g.strokeStyle = grey(0.8);
+    g.strokeStyle = grey(1);
     g.lineWidth = line;
     g.stroke();
   }
-
-  // rocks in a group, with raked rings around them
-  const R = L.rocks;
-  const rx0 = R.x * w;
-  const rb = R.base * ground;
-  const rs = R.s * ground;
-  rock(rx0 - rs * 0.9, rb, rs * 1.5, rs * 1.1);
-  rock(rx0 + rs * 0.5, rb + rs * 0.12, rs * 2.0, rs * 1.6);
-  rock(rx0 + rs * 1.6, rb + rs * 0.2, rs * 0.9, rs * 0.6);
-  const ring = { x: rx0 + rs * 0.3, y: rb, rx: rs * 2.6, ry: rs * 0.8 };
-
-  lantern(L.lantern.x * w, L.lantern.base * ground, L.lantern.s * ground);
-  if (L.small) niwaki(L.small.x * w, L.small.base * ground, L.small.ht * ground, L.small.lean, L.small.pads);
-  niwaki(L.pine.x * w, L.pine.base * ground, L.pine.ht * ground, L.pine.lean, L.pine.pads);
-
-  // raked gravel: lines across the garden, rings around the rocks
-  const rings = 5;
-  const gap = rs * 0.32;
-  const ringR = (k: number) => 1 + (k * gap) / ring.rx;
-  for (let k = 0; k <= rings; k++) {
-    const f = ringR(k);
-    const n = Math.round(ring.rx * f * 0.9);
-    for (let s = 0; s < n; s++) {
-      const a = (s / n) * Math.PI * 2;
-      const x = ring.x + Math.cos(a) * ring.rx * f;
-      const y = ring.y + Math.sin(a) * ring.ry * f;
-      still(
-        x,
-        y,
-        ((Math.PI * 2 * ring.rx * f) / n) * 1.15,
-        Math.atan2(Math.cos(a) * ring.ry, -Math.sin(a) * ring.rx),
-        0.32,
-        "ground",
-      );
+  g.beginPath();
+  left.forEach((p, s) => (s ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
+  [...right].reverse().forEach((p) => g.lineTo(p.x, p.y));
+  g.closePath();
+  const tg = g.createLinearGradient(cx - S * 0.2, 0, cx + S * 0.2, 0);
+  tg.addColorStop(0, grey(0.5));
+  tg.addColorStop(1, grey(0.22));
+  g.fillStyle = tg;
+  g.fill();
+  g.strokeStyle = grey(1);
+  g.lineWidth = line;
+  g.stroke();
+  // bark: a few long fissures following the trunk
+  g.lineWidth = Math.max(1, line * 0.7);
+  g.strokeStyle = grey(0.85);
+  for (const f of [-0.45, 0, 0.4]) {
+    g.beginPath();
+    for (let s = 2; s <= 34; s++) {
+      const a = left[s];
+      const b = right[s];
+      const x = a.x + (b.x - a.x) * (0.5 + f * 0.5) + Math.sin(s * 1.3 + f * 5) * 1.5;
+      const y = a.y + (b.y - a.y) * (0.5 + f * 0.5);
+      if (s === 2) g.moveTo(x, y);
+      else g.lineTo(x, y);
     }
+    g.stroke();
   }
-  const lines = mobile ? 16 : 22;
-  for (let k = 0; k < lines; k++) {
-    const y = gTop + (h - gTop) * (k / lines) ** 1.35;
-    const tone = 0.14 + 0.18 * (k / lines);
-    for (let x = 0; x < w; x += 3) {
-      const wy = y + Math.sin(x / 90 + k * 0.7) * 1.5;
-      const d = ((x - ring.x) / ring.rx) ** 2 + ((wy - ring.y) / ring.ry) ** 2;
-      if (d < ringR(rings + 0.6) ** 2) continue; // the lines part around the rings
-      if (stones.some((s) => ((x - s.x) / (s.rx + 4)) ** 2 + ((wy - s.y) / (s.ry + 3)) ** 2 < 1)) continue;
-      still(x, wy, 3.4, Math.cos(x / 90 + k * 0.7) * 0.017, tone, "ground");
+
+  // ---------- branches and their pads of needles ----------
+  const len0 = Math.max(3.2, S / 70); // needle length
+  /** a pad: overlapping clouds with a domed top and a flat underside, filled with tufts of needles */
+  const pad = (cx0: number, cy0: number, rx: number, ry: number, seed: number) => {
+    const r = mulberry32(seed);
+    const clouds = [
+      { x: cx0 - rx * 0.45, y: cy0 + ry * 0.12, rx: rx * 0.6, ry: ry * 0.85 },
+      { x: cx0 + rx * 0.05, y: cy0 - ry * 0.1, rx: rx * 0.62, ry: ry },
+      { x: cx0 + rx * 0.5, y: cy0 + ry * 0.1, rx: rx * 0.55, ry: ry * 0.8 },
+    ];
+    const inside = (x: number, y: number) => {
+      for (const k of clouds) {
+        const u = (x - k.x) / k.rx;
+        if (Math.abs(u) >= 1) continue;
+        const s = Math.sqrt(1 - u * u);
+        const top = k.y - k.ry * s * (1 + 0.12 * Math.sin(u * 7 + seed));
+        const bottom = k.y + k.ry * 0.45 * s;
+        if (y > top && y < bottom) return { v: (y - top) / (bottom - top), u: (x - cx0) / rx };
+      }
+      return null;
+    };
+    const step = len0 * 0.75;
+    for (let y = cy0 - ry * 1.3; y < cy0 + ry * 0.6; y += step) {
+      for (let x = cx0 - rx * 1.1; x < cx0 + rx * 1.1; x += step) {
+        const tx = x + (r() - 0.5) * step;
+        const ty = y + (r() - 0.5) * step;
+        const hit = inside(tx, ty);
+        if (!hit) continue;
+        const { v, u } = hit;
+        // the top is lit and open, the underside dark and close
+        if (r() > 0.62 + 0.38 * v) continue;
+        const shade = Math.min(1, 0.28 + 0.66 * v ** 1.2 + 0.1 * Math.max(0, -u));
+        // a tuft: needles fanning up from one point
+        const n = 4 + Math.floor(r() * 3);
+        const base = -Math.PI / 2 + u * 0.35 + (r() - 0.5) * 0.4;
+        for (let q = 0; q < n; q++) {
+          const a = base + (q / (n - 1) - 0.5) * 1.7;
+          const L = len0 * (0.75 + r() * 0.45);
+          strokes.push({
+            x: tx + Math.cos(a) * L * 0.5,
+            y: ty + Math.sin(a) * L * 0.5,
+            len: L,
+            ang: a,
+            alpha: shade,
+            sway: 0.025,
+          });
+        }
+      }
     }
+    // the underside: a fine dark edge
+    for (const k of clouds) {
+      for (let x = k.x - k.rx * 0.9; x < k.x + k.rx * 0.9; x += len0 * 0.7) {
+        const u = (x - k.x) / k.rx;
+        const y = k.y + k.ry * 0.45 * Math.sqrt(1 - u * u);
+        if (inside(x, y + 2)) continue; // only where it is the true underside
+        strokes.push({ x, y: y - 1, len: len0 * 0.9, ang: (r() - 0.5) * 0.4, alpha: 0.75, sway: 0.025 });
+      }
+    }
+  };
+  const branches = [
+    { t: 0.3, side: -1, reach: 0.44, rise: 0.03 },
+    { t: 0.42, side: 1, reach: 0.34, rise: 0.05 },
+    { t: 0.55, side: -1, reach: 0.3, rise: 0.05 },
+    { t: 0.66, side: 1, reach: 0.27, rise: 0.06 },
+    { t: 0.77, side: -1, reach: 0.2, rise: 0.05 },
+    { t: 0.87, side: 1, reach: 0.16, rise: 0.05 },
+  ];
+  branches.forEach((b, k) => {
+    const p = at(b.t);
+    const end = { x: p.x + b.side * S * b.reach, y: p.y - S * b.rise };
+    const bw = Math.max(1.5, w0 * 0.55 * (1 - b.t * 0.7));
+    // out and slightly down, then lifting at the tip
+    g.strokeStyle = grey(0.62);
+    for (const [wd, from, to] of [
+      [bw, 0, 0.5],
+      [bw * 0.6, 0.45, 1],
+    ] as const) {
+      const pt = (t: number) => {
+        const cxq = p.x + b.side * S * b.reach * 0.55;
+        const cyq = p.y + S * 0.03;
+        const u = 1 - t;
+        return { x: u * u * p.x + 2 * u * t * cxq + t * t * end.x, y: u * u * p.y + 2 * u * t * cyq + t * t * end.y };
+      };
+      g.lineWidth = wd;
+      g.beginPath();
+      for (let s = 0; s <= 10; s++) {
+        const q = pt(from + ((to - from) * s) / 10);
+        if (s === 0) g.moveTo(q.x, q.y);
+        else g.lineTo(q.x, q.y);
+      }
+      g.stroke();
+    }
+    const rx = S * (0.11 + 0.13 * (1 - b.t));
+    pad(end.x - b.side * rx * 0.3, end.y - rx * 0.1, rx, rx * 0.5, 40 + k * 13);
+  });
+  const top = at(1);
+  pad(top.x, top.y - S * 0.035, S * 0.11, S * 0.065, 7);
+
+  // moss on the soil
+  for (let x = px0 + S * 0.02; x < px0 + potW - S * 0.02; x += 2) {
+    if (rand() < 0.35) continue;
+    strokes.push({
+      x: x + rand() * 2,
+      y: soil - S * 0.02 - rand() * S * 0.012,
+      len: 2.5 + rand() * 3,
+      ang: -Math.PI / 2 + (rand() - 0.5) * 1.4,
+      alpha: 0.55 + rand() * 0.3,
+      sway: 0.01,
+    });
   }
 
   const data = g.getImageData(0, 0, W, H).data;
   const ink = new Float32Array(W * H);
   for (let p = 0; p < W * H; p++) ink[p] = 1 - data[p * 4] / 255;
-  // background needles and gravel stay behind the pads, trunks, stones and lantern
-  const kept = strokes.filter((st) => {
-    if (st.kind === "fg") return true;
-    if (st.kind === "bg" && pads.some((p) => g.isPointInPath(p, st.x, st.y))) return false;
-    const x = Math.round(st.x);
-    const y = Math.round(st.y);
-    const yy = Math.min(H - 1, Math.max(0, y));
-    for (let dx = -3; dx <= 3; dx += 3) if (ink[yy * W + Math.min(W - 1, Math.max(0, x + dx))] > 0.3) return false;
-    return true;
-  });
-  return { ink, W, H, labels, strokes: kept };
+  return { ink, W, H, labels: [], strokes };
 }
 
 // ---------- the painting, read as characters ----------
