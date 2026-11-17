@@ -3,8 +3,10 @@
 import { useEffect, useRef } from "react";
 
 /*
- * The world as a garden, drawn in black ASCII on paper, as you would see it
- * standing on its path.
+ * The world as a garden, as you would see it standing on its path: a soft
+ * watercolour wash underneath, ASCII on top as the texture, tinted by what it
+ * draws (deep green leaves, warm bark, blue-grey distance), and coloured
+ * blossoms in the flower beds.
  *
  * The scene is laid out in perspective: a lawn in mown stripes and a gravel
  * path with flower beds run to a far tree line; trees stand at different
@@ -118,6 +120,28 @@ function measureInk(font: string, cw: number, ch: number): Ink {
 
 // ---------- the scene ----------
 
+// what a cell is made of: picks its wash colour and its ink colour
+const M_INK = 0;
+const M_LEAF = 1;
+const M_GRASS = 2;
+const M_FAR = 3;
+const M_PATH = 4;
+const M_BARK = 5;
+const M_CLOUD = 6;
+
+/** ink colours for the characters, by material: deep green leaves, warm bark, blue-grey distance */
+const INKS: [number, number, number][] = [
+  [23, 23, 23],
+  [26, 46, 30],
+  [54, 70, 38],
+  [80, 98, 110],
+  [104, 88, 70],
+  [50, 38, 28],
+  [80, 98, 110],
+];
+
+const BLOOMS = ["#c46a63", "#d6a03c", "#9580c0", "#f6f1e6"];
+
 /** how much of a thing's tone survives the haze, by distance band (far .. near) */
 const HAZE_TONE = [0.5, 0.66, 0.84, 1];
 
@@ -126,6 +150,7 @@ const LEAF = 1; // rustles
 const BLADE = 2; // near grass, sways
 
 type Label = { text: string; x: number; y: number; strong: boolean };
+type Bloom = { x: number; y: number; size: number; color: string; glyph: string };
 
 type Scene = {
   w: number;
@@ -142,7 +167,9 @@ type Scene = {
   anim: Uint8Array;
   phase: Float32Array;
   clear: Uint8Array;
+  mat: Uint8Array;
   labels: Label[];
+  blooms: Bloom[];
 };
 
 type P = { x: number; y: number };
@@ -185,7 +212,9 @@ function buildScene(
     anim: new Uint8Array(n),
     phase: new Float32Array(n),
     clear: new Uint8Array(n),
+    mat: new Uint8Array(n),
     labels: [],
+    blooms: [],
   };
   const mobile = w < 640;
   const rand = mulberry32(23);
@@ -213,8 +242,10 @@ function buildScene(
     const j1 = Math.min(rows - 1, Math.ceil(y1 / ch));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fn(i, j, (i + 0.5) * cw, (j + 0.5) * ch);
   };
+  let paint = M_INK; // the material being laid down
   const ink = (i: number, j: number, v: number, fog: number, anim = NONE, phase = 0) => {
     const k = cell(i, j);
+    sc.mat[k] = paint;
     sc.lum[k] = Math.max(0, Math.min(1, v));
     sc.fog[k] = fog;
     sc.glyph[k] = "";
@@ -223,6 +254,7 @@ function buildScene(
   };
   const mark = (i: number, j: number, g: string, fog: number) => {
     const k = cell(i, j);
+    sc.mat[k] = paint;
     sc.glyph[k] = g;
     sc.fog[k] = fog;
     sc.anim[k] = NONE;
@@ -238,6 +270,8 @@ function buildScene(
 
   /** a ball of leaves, shaded as a lit sphere, lumpy at the edge; tex = px per leaf cluster */
   const blob = (bx: number, by: number, rx: number, ry: number, seed: number, tex: number, fog: number, weight = 1) => {
+    const was = paint;
+    paint = M_LEAF;
     cellsIn(bx - rx * 1.2, by - ry * 1.2, bx + rx * 1.2, by + ry * 1.2, (i, j, x, y) => {
       const u = (x - bx) / rx;
       const v = (y - by) / ry;
@@ -257,6 +291,7 @@ function buildScene(
       const far = HAZE_TONE[fog];
       ink(i, j, (val * far + 0.3 * (1 - far)) * far * weight, fog, LEAF, seed * 0.7 + fbm(i * 0.2, j * 0.2, 5) * 3);
     });
+    paint = was;
   };
   const crown = (x: number, y: number, rx: number, ry: number, seed: number, tex: number, fog: number, lumps = 5) => {
     const r = mulberry32(seed);
@@ -272,6 +307,7 @@ function buildScene(
   };
   /** a tapering limb drawn with stroke characters; bark when it is wide */
   const limb = (a: P, c: P, b: P, w0: number, w1: number, fog: number) => {
+    paint = M_BARK;
     const len = Math.hypot(b.x - a.x, b.y - a.y) + Math.hypot(c.x - a.x, c.y - a.y);
     const steps = Math.max(6, Math.ceil(len / (Math.min(cw, ch) * 0.5)));
     for (let k = 0; k <= steps; k++) {
@@ -312,11 +348,13 @@ function buildScene(
   };
 
   // ---------- sky: a few soft clouds, then the far tree line ----------
+  paint = M_CLOUD;
   cellsIn(0, 0, w, yh, (i, j, x, y) => {
     const c = fbm(x / 260, y / 70, 50);
     const v = Math.max(0, c - 0.58) * 0.9 * Math.min(1, (yh - y) / 60);
     if (v > 0.015) ink(i, j, v, 0);
   });
+  paint = M_FAR;
   cellsIn(0, yh - 70, w, yh, (i, j, x, y) => {
     const top = yh - (8 + 26 * fbm(x / 80, 0.5, 60) ** 1.4 + 12 * fbm(x / 22, 1.5, 61));
     if (y < top) return;
@@ -333,6 +371,7 @@ function buildScene(
     const detail = Math.min(1, 4 / z);
     const dz = z - treeZ;
     const pr = Math.sqrt(x * x + dz * dz);
+    paint = M_PATH;
     if (pr < plazaR) {
       ink(i, j, 0.05 + 0.1 * hash(i, j, 70) * detail, fog);
       return;
@@ -352,6 +391,7 @@ function buildScene(
       mark(i, j, x < 0 ? "/" : "\\", fog);
       return;
     }
+    paint = M_GRASS;
     const stripe = Math.floor((x + 100) / 1.6) % 2 ? 0.07 : -0.03;
     const grass = 0.24 + stripe + 0.14 * (fbm(x * 0.9, z * 0.9, 1) - 0.5) + 0.22 * (hash(i, j, 72) - 0.5) * detail;
     const haze = Math.min(1, z / 45);
@@ -385,6 +425,7 @@ function buildScene(
       const dx = sx - p.x;
       if (Math.abs(dx) > half) return;
       const v = HAZE_TONE[fog] * 0.42 + (dx / (half || 1)) * 0.22 * HAZE_TONE[fog] + yr * 0.12 + 0.4 * (fbm(sx / Math.max(3, p.s * 0.3), sy / Math.max(3, p.s * 0.3), seed) - 0.5);
+      paint = M_LEAF;
       ink(i, j, v, fog, LEAF, seed + i * 0.2);
     });
   };
@@ -396,15 +437,13 @@ function buildScene(
     shadow(p.x + rx * 0.3, p.y, rx * 1.1, Math.max(ch * 0.6, ry * 0.4), 0.2, z);
     blob(p.x, p.y - ry * 0.8, rx, ry, seed, Math.max(2.5, p.s * 0.12), fog, 0.68);
     const r = mulberry32(seed);
-    const big = 0.09 * p.s > ch * 0.5;
+    // blossoms: a colour per bed, a flower glyph up close, a dot further away
+    const color = BLOOMS[seed % BLOOMS.length];
+    const size = Math.max(4, Math.min(15, p.s * 0.11));
     for (let k = 0; k < 6; k++) {
       const fx = p.x + (r() - 0.5) * rx * 1.5;
       const fy = p.y - ry * 0.8 - r() * ry * 0.9;
-      const i = Math.floor(fx / cw);
-      const j = Math.floor(fy / ch);
-      if (i < 0 || i >= cols || j < 0 || j >= rows) continue;
-      if (big) mark(i, j, ["o", "@", "*"][Math.floor(r() * 3)], fog);
-      else ink(i, j, 0.04, fog);
+      sc.blooms.push({ x: fx, y: fy, size, color, glyph: size > 8 ? ["✿", "❀", "✽"][Math.floor(r() * 3)] : "•" });
     }
   };
 
@@ -515,6 +554,94 @@ function buildScene(
 
 const FOG_ALPHA = [0.34, 0.52, 0.74, 1];
 
+/** the soft painted layer under the characters, like a watercolour wash under ink */
+function paintWash(sc: Scene, dpr: number) {
+  const { cols, rows, cw, ch, w, h } = sc;
+  const small = document.createElement("canvas");
+  small.width = cols;
+  small.height = rows;
+  const sx = small.getContext("2d")!;
+  const img = sx.createImageData(cols, rows);
+  const haze = [168, 182, 188];
+  for (let k = 0; k < cols * rows; k++) {
+    if (sc.clear[k]) continue;
+    const v = sc.lum[k];
+    const near = sc.fog[k] / 3;
+    let c: number[] | null = null;
+    let a = 0;
+    switch (sc.mat[k]) {
+      case M_LEAF:
+        c = [86, 118, 84];
+        a = (0.2 + 0.55 * v) * (0.6 + 0.4 * near);
+        break;
+      case M_GRASS:
+        c = [146, 166, 106];
+        a = 0.14 + 0.5 * v;
+        break;
+      case M_FAR:
+        c = [156, 174, 182];
+        a = 0.16 + 0.5 * v;
+        break;
+      case M_PATH:
+        c = [224, 207, 176];
+        a = 0.55;
+        break;
+      case M_BARK:
+        c = [112, 92, 72];
+        a = 0.55;
+        break;
+      case M_CLOUD:
+        c = [255, 255, 255];
+        a = Math.min(0.75, v * 5);
+        break;
+    }
+    if (!c) continue;
+    const m = (1 - near) * 0.7; // distance turns everything toward the haze
+    img.data[k * 4] = c[0] + (haze[0] - c[0]) * m;
+    img.data[k * 4 + 1] = c[1] + (haze[1] - c[1]) * m;
+    img.data[k * 4 + 2] = c[2] + (haze[2] - c[2]) * m;
+    img.data[k * 4 + 3] = Math.round(Math.min(1, a) * 255);
+  }
+  sx.putImageData(img, 0, 0);
+
+  const wash = document.createElement("canvas");
+  wash.width = Math.round(w * dpr);
+  wash.height = Math.round(h * dpr);
+  const wx = wash.getContext("2d")!;
+  wx.scale(dpr, dpr);
+
+  // a pale sky, warm light low on the horizon behind the tree
+  const yh = rows * ch * 0.36;
+  const sky = wx.createLinearGradient(0, 0, 0, h * 0.5);
+  sky.addColorStop(0, "rgba(176, 202, 222, 0.42)");
+  sky.addColorStop(1, "rgba(176, 202, 222, 0)");
+  wx.fillStyle = sky;
+  wx.fillRect(0, 0, w, h * 0.5);
+  const glow = wx.createRadialGradient(w / 2, yh, 0, w / 2, yh, Math.max(w, h) * 0.55);
+  glow.addColorStop(0, "rgba(255, 228, 180, 0.6)");
+  glow.addColorStop(1, "rgba(255, 228, 180, 0)");
+  wx.fillStyle = glow;
+  wx.fillRect(0, 0, w, h);
+
+  // the wash itself: blurred, so it reads painted rather than gridded
+  wx.imageSmoothingEnabled = true;
+  wx.imageSmoothingQuality = "high";
+  if ("filter" in wx) wx.filter = `blur(${Math.round(ch * 0.7)}px)`;
+  wx.drawImage(small, 0, 0, cols * cw, rows * ch);
+  wx.filter = "none";
+
+  // blossoms bleed a little colour around them
+  for (const b of sc.blooms) {
+    const r = b.size * 1.1;
+    const g = wx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
+    g.addColorStop(0, b.color + "66");
+    g.addColorStop(1, b.color + "00");
+    wx.fillStyle = g;
+    wx.fillRect(b.x - r, b.y - r, r * 2, r * 2);
+  }
+  return wash;
+}
+
 export default function AsciiGarden({ className = "" }: { className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -529,6 +656,8 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
     let scene: Scene | null = null;
     let ink: Ink | null = null;
     let atlas: HTMLCanvasElement | null = null;
+    let wash: HTMLCanvasElement | null = null;
+    let family = "monospace";
     let dpr = 1;
     let labelFont = "";
     let edgeFont = "";
@@ -549,7 +678,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
 
       const mobile = w < 640;
       const size = mobile ? 8 : 10;
-      const family = getComputedStyle(canvas).fontFamily || "monospace";
+      family = getComputedStyle(canvas).fontFamily || "monospace";
       const font = `${size}px ${family}`;
       labelFont = `${mobile ? 11 : 13}px ${family}`;
       edgeFont = `${mobile ? 10 : 11}px ${family}`;
@@ -559,21 +688,24 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
 
       ink = measureInk(font, cw, ch);
 
-      // every character at every haze level, drawn once
+      // every character in every ink colour at every haze level, drawn once
       const cwD = Math.ceil(cw * dpr);
       const chD = Math.ceil(ch * dpr);
       atlas = document.createElement("canvas");
       atlas.width = cwD * ink.chars.length;
-      atlas.height = chD * FOG_ALPHA.length;
+      atlas.height = chD * FOG_ALPHA.length * INKS.length;
       const a = atlas.getContext("2d")!;
       a.scale(dpr, dpr);
       a.font = font;
       a.textAlign = "center";
       a.textBaseline = "middle";
-      FOG_ALPHA.forEach((al, r) => {
-        a.fillStyle = `rgba(23, 23, 23, ${al})`;
-        ink!.chars.forEach((c, k) => a.fillText(c, (k * cwD) / dpr + cw / 2, (r * chD) / dpr + ch / 2));
-      });
+      INKS.forEach(([r, g, b], m) =>
+        FOG_ALPHA.forEach((al, f) => {
+          const row = m * FOG_ALPHA.length + f;
+          a.fillStyle = `rgba(${r}, ${g}, ${b}, ${al * 0.92})`;
+          ink!.chars.forEach((c, k) => a.fillText(c, (k * cwD) / dpr + cw / 2, (row * chD) / dpr + ch / 2));
+        }),
+      );
 
       const clearings = Array.from(host.querySelectorAll<HTMLElement>("[data-garden-clear]"))
         .filter((el) => el.offsetParent !== null)
@@ -586,6 +718,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
         groundEl && groundEl.offsetParent !== null ? groundEl.getBoundingClientRect().bottom - rect.top : null;
 
       scene = buildScene(w, h, cw, ch, clearings, groundTop);
+      wash = paintWash(scene, dpr);
       draw(performance.now());
     };
 
@@ -597,6 +730,7 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       const chD = Math.ceil(sc.ch * dpr);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (wash) ctx.drawImage(wash, 0, 0);
 
       const pcol = pointer.x / sc.cw;
       const prow = pointer.y / sc.ch;
@@ -630,13 +764,22 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
             ci = ink.lut[Math.min(63, Math.round(v * 63))];
           }
           if (ci === 0 && !g) continue;
-          ctx.drawImage(atlas, ci * cwD, sc.fog[k] * chD, cwD, chD, Math.round(i * sc.cw * dpr), Math.round(j * sc.ch * dpr), cwD, chD);
+          const row = sc.mat[k] * FOG_ALPHA.length + sc.fog[k];
+          ctx.drawImage(atlas, ci * cwD, row * chD, cwD, chD, Math.round(i * sc.cw * dpr), Math.round(j * sc.ch * dpr), cwD, chD);
         }
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+
+      // blossoms, nodding a little in the wind
+      for (const b of sc.blooms) {
+        ctx.font = `${Math.round(b.size)}px ${family}`;
+        ctx.fillStyle = b.color;
+        const nod = reduced ? 0 : Math.sin(t * 1.4 + b.x * 0.05) * b.size * 0.08;
+        ctx.fillText(b.glyph, b.x + nod, b.y);
+      }
 
       // a few birds crossing the sky
       ctx.font = edgeFont;
@@ -651,11 +794,22 @@ export default function AsciiGarden({ className = "" }: { className?: string }) 
       // name plates, larger than the garden's own characters
       for (const l of sc.labels) {
         ctx.font = l.strong ? labelFont : edgeFont;
-        const tw = ctx.measureText(l.text).width;
-        const ph = l.strong ? 18 : 15;
-        ctx.fillStyle = l.strong ? "rgba(247, 244, 234, 0.92)" : "rgba(247, 244, 234, 0.75)";
-        ctx.fillRect(l.x - tw / 2 - 5, l.y - ph / 2, tw + 10, ph);
-        ctx.fillStyle = l.strong ? "rgba(23, 23, 23, 1)" : "rgba(23, 23, 23, 0.55)";
+        if (l.strong) {
+          // the words: a soft rounded plate
+          const tw = ctx.measureText(l.text).width;
+          ctx.fillStyle = "rgba(250, 247, 238, 0.78)";
+          ctx.beginPath();
+          ctx.roundRect(l.x - tw / 2 - 6, l.y - 9, tw + 12, 18, 9);
+          ctx.fill();
+          ctx.fillStyle = "rgba(23, 23, 23, 0.95)";
+        } else {
+          // the pieces of words along the boughs: a halo, no plate
+          ctx.lineWidth = 4;
+          ctx.lineJoin = "round";
+          ctx.strokeStyle = "rgba(250, 247, 238, 0.85)";
+          ctx.strokeText(l.text, l.x, l.y + 0.5);
+          ctx.fillStyle = "rgba(60, 52, 42, 0.75)";
+        }
         ctx.fillText(l.text, l.x, l.y + 0.5);
       }
     };
