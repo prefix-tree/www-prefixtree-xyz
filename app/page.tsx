@@ -1,4 +1,4 @@
-import AsciiGarden from "@/components/AsciiGarden";
+import AsciiForest from "@/components/AsciiForest";
 import TreeMark from "@/components/TreeMark";
 import Trie from "@/components/Trie";
 
@@ -52,7 +52,7 @@ export default function Home() {
     <>
       {/* ---------- HERO ---------- */}
       <section className="hero-garden relative flex min-h-[100svh] flex-col justify-between overflow-hidden">
-        <AsciiGarden />
+        <AsciiForest />
 
         <h1
           data-garden-clear
