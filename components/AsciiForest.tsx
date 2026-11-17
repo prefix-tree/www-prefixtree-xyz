@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
  * game renderers: foliage as free needle strokes, everything else as a grid
  * of characters.
  *
- * The four big spruces (and a lighter middle row) are made of thousands of
+ * The spruces (big ones framing the view, a lighter middle row) are made of thousands of
  * short strokes that hang and lean outward along each tier, dense in the
  * tier's shaded underside and sparse on its lit side, so the tiers read. A
  * meadow of grass blades runs from short and pale at the horizon to long and
@@ -17,8 +17,9 @@ import { useEffect, useRef } from "react";
  * direction (a structure tensor on the full painting), tone becomes the
  * symbol of matching measured ink.
  *
- * The characters are drawn once; the strokes sway in a slow wind. The four big
- * spruces carry the prefix tree's words: prefix, product, prototype, project.
+ * In the middle stands a round, friendly tree made of words and letters: the
+ * prefix tree itself (see buildWordTree). The characters are drawn once; the
+ * strokes and the word tree sway in a slow wind.
  *
  * Elements inside the hero marked `data-garden-clear` get a clearing so their
  * text stays readable; a visible `data-garden-ground` element marks where the
@@ -158,22 +159,22 @@ function paintForest(w: number, h: number, ground: number): Painting {
     const tiers = 7 + Math.floor(rand() * 3);
     const top = base - height;
     const step = Math.max(2.2, height / 190); // spacing between needles
-    const len0 = Math.max(3.5, height / 42);
+    const len0 = Math.max(3, height / 55);
     for (let t = 0; t < tiers; t++) {
       const f = t / tiers; // 0 bottom .. 1 top
       const yb = base - trunkH - f * (height - trunkH) * 0.92; // the tier's lower edge
-      const hw = (width / 2) * (1 - f) ** 0.85 + width * 0.03;
+      const hw = (width / 2) * (1 - f) ** 0.7 + width * 0.04; // a fuller, rounder outline
       const th = ((height - trunkH) / tiers) * 1.9;
       const apex = Math.max(top, yb - th);
       const path = new Path2D();
       path.moveTo(x, apex);
       path.quadraticCurveTo(x - hw * 0.45, yb - th * 0.45, x - hw, yb + th * 0.12);
-      const teeth = Math.max(4, Math.round(hw / (height * 0.025)));
+      // soft scallops along the lower edge rather than sharp teeth
+      const teeth = Math.max(3, Math.round(hw / (height * 0.04)));
       for (let q = 1; q <= teeth; q++) {
         const px = x - hw + (2 * hw * q) / teeth;
-        const sag = th * 0.1 * Math.sin((Math.PI * q) / teeth);
-        path.lineTo(px - hw / teeth, yb - th * 0.08 + sag);
-        path.lineTo(px, yb + th * (0.1 + rand() * 0.08) + sag);
+        const sag = th * 0.12 * Math.sin((Math.PI * q) / teeth);
+        path.quadraticCurveTo(px - hw / teeth, yb + th * (0.22 + rand() * 0.06) + sag, px, yb + th * 0.06 + sag);
       }
       path.quadraticCurveTo(x + hw * 0.45, yb - th * 0.45, x, apex);
       path.closePath();
@@ -190,7 +191,7 @@ function paintForest(w: number, h: number, ground: number): Painting {
             x: sx,
             y: sy,
             len: len0 * (0.6 + rand() * 0.7) * (0.7 + 0.5 * v),
-            ang: Math.PI / 2 - u * 0.75 + (rand() - 0.5) * 0.55, // hanging, leaning outward
+            ang: Math.PI / 2 - u * 0.45 + (rand() - 0.5) * 0.4, // hanging, leaning a little outward
             alpha: strength * (0.35 + 0.65 * dense),
             sway: 0.05 + 0.05 * strength,
           });
@@ -366,40 +367,32 @@ function paintForest(w: number, h: number, ground: number): Painting {
     g.stroke();
   }
   // a middle row of spruces, lighter, outlined thinly
-  const midXs = mobile ? [0.22, 0.55, 0.82] : [0.2, 0.38, 0.5, 0.66, 0.74, 0.93];
-  for (const fx of midXs) spruce(fx * w + (rand() - 0.5) * 20, horizon + ground * 0.04, ground * (0.3 + rand() * 0.1), 0.5, true);
+  const midXs = mobile ? [0.16, 0.86] : [0.15, 0.31, 0.7, 0.85];
+  for (const fx of midXs) spruce(fx * w + (rand() - 0.5) * 20, horizon + ground * 0.04, ground * (0.3 + rand() * 0.1), 0.4, true);
 
-  // the four named spruces, standing apart, nearest the viewer
+  // spruces nearest the viewer, framing the word tree in the middle
   const big = mobile
     ? [
-        { fx: 0.1, base: 0.94, ht: 0.72, word: "prefix" },
-        { fx: 0.38, base: 0.86, ht: 0.5, word: "product" },
-        { fx: 0.68, base: 0.88, ht: 0.56, word: "prototype" },
-        { fx: 0.93, base: 0.96, ht: 0.74, word: "project" },
+        { fx: 0.04, base: 0.95, ht: 0.62 },
+        { fx: 0.97, base: 0.96, ht: 0.66 },
       ]
     : [
-        { fx: 0.09, base: 0.97, ht: 0.86, word: "prefix" },
-        { fx: 0.29, base: 0.86, ht: 0.58, word: "product" },
-        { fx: 0.69, base: 0.85, ht: 0.55, word: "prototype" },
-        { fx: 0.87, base: 0.96, ht: 0.82, word: "project" },
+        { fx: 0.07, base: 0.97, ht: 0.8 },
+        { fx: 0.22, base: 0.88, ht: 0.52 },
+        { fx: 0.79, base: 0.88, ht: 0.54 },
+        { fx: 0.94, base: 0.97, ht: 0.78 },
       ];
-  for (const b of big) {
-    const x = b.fx * w;
-    const base = b.base * ground;
-    const ht = b.ht * ground;
-    spruce(x, base, ht, 0.95, true);
-    labels.push({ text: b.word, x, y: base - ht * 0.45 });
-  }
+  for (const b of big) spruce(b.fx * w, b.base * ground, b.ht * ground, 0.58, true);
 
   // the forest floor up close: a stump, mushrooms, ferns, grass
   const floorY = ground * (mobile ? 0.93 : 0.95);
-  stump(w * (mobile ? 0.5 : 0.52), floorY, w * (mobile ? 0.16 : 0.075));
-  const mx = w * (mobile ? 0.66 : 0.6);
+  stump(w * (mobile ? 0.8 : 0.67), floorY, w * (mobile ? 0.14 : 0.065));
+  const mx = w * (mobile ? 0.22 : 0.74);
   mushroom(mx, floorY + ground * 0.01, ground * 0.07, -0.4);
   mushroom(mx + ground * 0.06, floorY + ground * 0.02, ground * 0.05, 0.3);
   mushroom(mx - ground * 0.04, floorY + ground * 0.025, ground * 0.032, 0.1);
-  fern(w * (mobile ? 0.25 : 0.42), floorY + ground * 0.04, ground * (mobile ? 0.16 : 0.2));
-  if (!mobile) fern(w * 0.76, floorY + ground * 0.05, ground * 0.24);
+  fern(w * (mobile ? 0.62 : 0.35), floorY + ground * 0.04, ground * (mobile ? 0.14 : 0.18));
+  if (!mobile) fern(w * 0.86, floorY + ground * 0.05, ground * 0.22);
   for (let s = 0; s < (mobile ? 10 : 22); s++) {
     const y = horizon + ground * 0.05 + rand() * ground * 0.25;
     grass(rand() * w, y, ground * 0.025 * (0.6 + (y - horizon) / ground * 3), 0.55 + (y - horizon) / ground);
@@ -438,6 +431,143 @@ function paintForest(w: number, h: number, ground: number): Painting {
   return { ink, W, H, labels, strokes: kept };
 }
 
+// ---------- the word tree: the prefix tree, written ----------
+
+/** one letter of the word tree */
+type Glyph = { c: string; x: number; y: number; size: number; rot: number; alpha: number; sway: number };
+
+/**
+ * A big friendly round tree made of words and letters. The trunk is filled
+ * with "pr"; the boughs carry the rest of each word written along them ("efix",
+ * "o", then "duct", "totype", "ject"); the crown is four round clusters of
+ * lines of text, one per word (prefix, product, prototype, project), with
+ * "prefix tree" filling between them.
+ */
+function buildWordTree(w: number, ground: number, mobile: boolean): Glyph[] {
+  const out: Glyph[] = [];
+  const rand = mulberry32(77);
+  const by = ground * (mobile ? 0.9 : 0.93);
+  const S = mobile ? Math.min(w * 0.72, (by - 210) / 1.1) : Math.min(w * 0.4, (by - 160) / 1.1);
+  const cx = w * 0.5 - S * 0.04;
+  const at = (dx: number, dy: number) => ({ x: cx + dx * S, y: by - dy * S });
+  const size = mobile ? 9 : 11; // the crown's letters
+  const adv = size * 0.62; // mono advance
+
+  const lobes = [
+    { word: "prefix", ...at(-0.3, 0.66), r: 0.22 },
+    { word: "product", ...at(-0.05, 0.92), r: 0.19 },
+    { word: "prototype", ...at(0.25, 0.92), r: 0.19 },
+    { word: "project", ...at(0.42, 0.66), r: 0.19 },
+    { word: "prefix tree", ...at(0.07, 0.72), r: 0.18 },
+  ].map((l) => ({ ...l, rx: l.r * S * 1.18, ry: l.r * S }));
+  const inCrown = (x: number, y: number) => {
+    let best = Infinity;
+    let lobe = lobes[0];
+    for (const l of lobes) {
+      const ang = Math.atan2(y - l.y, x - l.x);
+      const edge = 1 + 0.08 * Math.sin(ang * 5 + l.x * 0.01) + 0.05 * Math.sin(ang * 9 + l.y * 0.02);
+      const d = Math.sqrt(((x - l.x) / l.rx) ** 2 + ((y - l.y) / l.ry) ** 2) / edge;
+      if (d < best) {
+        best = d;
+        lobe = l;
+      }
+    }
+    return { d: best, lobe };
+  };
+
+  // the trunk: rows of "pr", widening into roots at the base
+  const fork = at(-0.01, 0.38);
+  const tSize = mobile ? 10 : 12;
+  for (let y = fork.y; y < by + tSize * 0.4; y += tSize * 1.02) {
+    const t = (y - fork.y) / (by - fork.y); // 0 fork .. 1 base
+    const half = S * (0.035 + 0.02 * t + 0.05 * Math.max(0, t - 0.82) ** 1.5 * 25);
+    const mid = fork.x + (cx - fork.x) * t - S * 0.015 * Math.sin(t * Math.PI);
+    let k = Math.floor(rand() * 2);
+    for (let x = mid - half; x <= mid + half; x += tSize * 0.62) {
+      const u = (x - mid) / half;
+      out.push({ c: "pr"[k++ % 2], x, y, size: tSize, rot: 0, alpha: 0.95 - 0.35 * Math.max(0, u), sway: 0 });
+    }
+  }
+
+  // a bough: its word written along a curve, in a few lines when it is thick
+  const bough = (a: { x: number; y: number }, c: { x: number; y: number }, b: { x: number; y: number }, word: string, lines: number, s0: number, s1: number) => {
+    const text = word + " ";
+    const pt = (t: number) => ({
+      x: (1 - t) ** 2 * a.x + 2 * (1 - t) * t * c.x + t * t * b.x,
+      y: (1 - t) ** 2 * a.y + 2 * (1 - t) * t * c.y + t * t * b.y,
+    });
+    const leftward = b.x < a.x;
+    for (let line = 0; line < lines; line++) {
+      const off = (line - (lines - 1) / 2) * s0 * 1.05;
+      let t = 0;
+      let k = 0;
+      while (t < 1) {
+        const tt = leftward ? 1 - t : t; // write so it reads left to right
+        const p = pt(tt);
+        const q = pt(Math.min(1, tt + 0.01));
+        const p0 = pt(Math.max(0, tt - 0.01));
+        let ang = Math.atan2(q.y - p0.y, q.x - p0.x);
+        if (ang > Math.PI / 2) ang -= Math.PI;
+        if (ang < -Math.PI / 2) ang += Math.PI;
+        const sz = s0 + (s1 - s0) * t;
+        const thin = 1 - t * 0.6; // fewer lines toward the tip
+        const x = p.x - Math.sin(ang) * off * thin;
+        const y = p.y + Math.cos(ang) * off * thin;
+        const ch = text[k % text.length];
+        k++;
+        if (ch !== " " && inCrown(x, y).d > 0.8) out.push({ c: ch, x, y, size: sz, rot: ang, alpha: 0.9, sway: 0.4 + t });
+        t += (sz * 0.62) / Math.max(1, Math.hypot(b.x - a.x, b.y - a.y) * 1.1);
+      }
+    }
+  };
+  const pro = at(0.13, 0.58);
+  const b0 = mobile ? 9 : 11;
+  bough(fork, at(-0.2, 0.42), at(-0.3, 0.62), "efix", 3, b0, b0 * 0.8);
+  bough(fork, at(0.08, 0.45), pro, "o", 3, b0, b0 * 0.9);
+  bough(pro, at(0.0, 0.66), at(-0.05, 0.86), "duct", 2, b0 * 0.9, b0 * 0.75);
+  bough(pro, at(0.2, 0.7), at(0.25, 0.86), "totype", 2, b0 * 0.9, b0 * 0.75);
+  bough(pro, at(0.32, 0.56), at(0.4, 0.62), "ject", 2, b0 * 0.9, b0 * 0.75);
+
+  // the crown: lines of words inside round clusters, darker low and on the left
+  const top = Math.min(...lobes.map((l) => l.y - l.ry * 1.15));
+  const bottom = Math.max(...lobes.map((l) => l.y + l.ry * 1.15));
+  const left = Math.min(...lobes.map((l) => l.x - l.rx * 1.15));
+  const right = Math.max(...lobes.map((l) => l.x + l.rx * 1.15));
+  for (let y = top; y < bottom; y += size * 1.12) {
+    let x = left + rand() * adv * 4;
+    while (x < right) {
+      const { d, lobe } = inCrown(x, y);
+      if (d > 1) {
+        // outside: keep the paper clear inside the crown's outline, then move on
+        x += adv;
+        continue;
+      }
+      const word = lobe.word;
+      const end = x + adv * (word.length - 1);
+      const fits = inCrown(end, y);
+      if (fits.d > 1 || fits.lobe !== lobe) {
+        x += adv;
+        continue;
+      }
+      // a whole word, shaded darker low and on the left of its cluster
+      for (let k = 0; k < word.length; k++) {
+        const lx = x + adv * k;
+        if (word[k] === " ") continue;
+        const low = (y - lobe.y) / lobe.ry;
+        const side = (lobe.x - lx) / lobe.rx;
+        const shade = Math.min(1, Math.max(0.3, 0.62 + 0.25 * low + 0.2 * side));
+        out.push({ c: word[k], x: lx, y, size, rot: 0, alpha: shade * (0.6 + 0.4 * (1 - d * d)), sway: 1 + (by - y) / S });
+      }
+      x = end + adv * 2;
+    }
+  }
+  // the crown's outline is paper: the forest behind does not show through it
+  for (let y = top; y < bottom; y += size) {
+    for (let x = left; x < right; x += adv * 2) if (inCrown(x, y).d < 1.02) out.push({ c: "", x, y, size, rot: 0, alpha: 0, sway: 0 });
+  }
+  return out;
+}
+
 // ---------- the painting, read as characters ----------
 
 type Cells = {
@@ -459,7 +589,16 @@ type Cells = {
 
 const STROKE_SHADES = 8;
 
-function readCells(p: Painting, w: number, h: number, cw: number, ch: number, clearings: DOMRect[]): Cells {
+function readCells(
+  p: Painting,
+  w: number,
+  h: number,
+  cw: number,
+  ch: number,
+  clearings: DOMRect[],
+  /** points to leave as paper (the word tree stands there), in css px */
+  hush: { x: number; y: number }[] = [],
+): Cells {
   const cols = Math.ceil(w / cw);
   const rows = Math.ceil(h / ch);
   const n = cols * rows;
@@ -507,6 +646,12 @@ function readCells(p: Painting, w: number, h: number, cw: number, ch: number, cl
   }
 
   const clear = new Uint8Array(n);
+  // paper behind the word tree, a cell around each of its letters
+  for (const q of hush) {
+    const i0 = Math.floor(q.x / cw);
+    const j0 = Math.floor(q.y / ch);
+    for (let j = j0 - 1; j <= j0 + 1; j++) for (let i = i0 - 1; i <= i0 + 1; i++) if (i >= 0 && j >= 0 && i < cols && j < rows) clear[j * cols + i] = 1;
+  }
   for (const r of clearings) {
     const pad = cw * 3;
     const mx = (r.left + r.right) / 2;
@@ -553,6 +698,8 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
     let ink: Ink | null = null;
     let atlas: HTMLCanvasElement | null = null;
     let still: HTMLCanvasElement | null = null; // the forest, drawn once
+    let words: Glyph[] = [];
+    let family = "monospace";
     let dpr = 1;
     let labelFont = "";
     let raf = 0;
@@ -571,7 +718,7 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
 
       const mobile = w < 640;
       const size = mobile ? 7 : 8;
-      const family = getComputedStyle(canvas).fontFamily || "monospace";
+      family = getComputedStyle(canvas).fontFamily || "monospace";
       const font = `300 ${size}px ${family}`; // thin strokes, like an etching needle
       labelFont = `${mobile ? 11 : 13}px ${family}`;
       ctx.font = font;
@@ -602,7 +749,12 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
       const ground =
         groundEl && groundEl.offsetParent !== null ? groundEl.getBoundingClientRect().bottom - rect.top : h;
 
-      cells = readCells(paintForest(w, h, ground), w, h, cw, ch, clearings);
+      // the word tree first: the forest behind it is left as paper so its letters read
+      const pad = cw * 2;
+      words = buildWordTree(w, ground, mobile)
+        .filter((g) => !clearings.some((r) => g.x > r.left - pad && g.x < r.right + pad && g.y > r.top - pad && g.y < r.bottom + pad))
+        .sort((a, b) => a.size - b.size);
+      cells = readCells(paintForest(w, h, ground), w, h, cw, ch, clearings, words);
       still = drawStill(cells, ink, atlas);
       draw(performance.now());
     };
@@ -661,7 +813,27 @@ export default function AsciiForest({ className = "" }: { className?: string }) 
         ctx.stroke();
       });
 
-      // names on four of the trees
+      // the word tree, its lines of text swaying gently
+      ctx.fillStyle = `rgb(${INK})`;
+      let font = 0;
+      for (const g of words) {
+        if (!g.c) continue;
+        if (g.size !== font) {
+          font = g.size;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.font = `${Math.round(g.size * 10) / 10}px ${family}`;
+        }
+        const dx = reduced ? 0 : Math.sin(t * 0.9 + g.y * 0.03) * g.sway;
+        const cos = Math.cos(g.rot) * dpr;
+        const sin = Math.sin(g.rot) * dpr;
+        ctx.setTransform(cos, sin, -sin, cos, (g.x + dx) * dpr, g.y * dpr);
+        ctx.globalAlpha = g.alpha;
+        ctx.fillText(g.c, 0, 0);
+      }
+      ctx.globalAlpha = 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // names on trees, if any
       ctx.font = labelFont;
       for (const l of c.labels) {
         const tw = ctx.measureText(l.text).width;
