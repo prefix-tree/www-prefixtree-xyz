@@ -32,11 +32,11 @@ const seedling = String.raw`   \ | /
 
 const projects = [
   {
-    name: "cutcraft",
+    name: "uberscene",
     kind: "open source",
-    body: "Video editor as code. A model writes a TSX file of words and shots; CutCraft does the arithmetic, plays it in the browser, edits it and exports it.",
-    href: "https://cutcraft.prefixtree.xyz/",
-    host: "cutcraft.prefixtree.xyz",
+    body: "Video editor as code. A model writes a TSX file of words and shots; UberScene does the arithmetic, plays it in the browser, edits it and exports it.",
+    href: "https://uberscene.prefixtree.xyz/",
+    host: "uberscene.prefixtree.xyz",
   },
   {
     name: "deletion.info",
