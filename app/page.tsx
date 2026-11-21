@@ -30,23 +30,6 @@ const seedling = String.raw`   \ | /
      |
  ,,,,|,,,,`;
 
-const projects = [
-  {
-    name: "uberscene",
-    kind: "open source",
-    body: "Video editor as code. A model writes a TSX file of words and shots; UberScene does the arithmetic, plays it in the browser, edits it and exports it.",
-    href: "https://uberscene.prefixtree.xyz/",
-    host: "uberscene.prefixtree.xyz",
-  },
-  {
-    name: "deletion.info",
-    kind: "public good",
-    body: "A free public resource, open to everyone.",
-    href: "https://deletion.info/",
-    host: "deletion.info",
-  },
-];
-
 export default function Home() {
   return (
     <>
@@ -158,51 +141,6 @@ export default function Home() {
               Fig. 1 &nbsp; Four words, one root
             </figcaption>
           </figure>
-        </div>
-      </section>
-
-      {/* ---------- PROJECTS ---------- */}
-      <section id="projects" className="mx-auto max-w-5xl scroll-mt-24 px-6 pb-24 sm:px-12">
-        <h2 className="max-w-3xl font-serif text-4xl leading-tight text-neutral-900 md:text-5xl">
-          What grows here.{" "}
-          <span className="text-neutral-400">
-            Products, open-source projects and public goods.
-          </span>
-        </h2>
-
-        <div className="mt-12 font-mono text-sm">
-          <div className="text-neutral-500">projects/</div>
-          {projects.map((p, i) => {
-            const last = i === projects.length - 1;
-            return (
-              <div key={p.name}>
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-neutral-900">
-                  <span>
-                    <span className="text-neutral-400">{last ? "└── " : "├── "}</span>
-                    {p.name}
-                  </span>
-                  <span className="rounded border border-neutral-300 px-1.5 text-xs text-neutral-500">
-                    {p.kind}
-                  </span>
-                </div>
-                <div
-                  className={`ml-[0.5ch] pb-6 pl-[3.5ch] ${last ? "" : "border-l border-neutral-300"}`}
-                >
-                  <p className="max-w-xl font-sans text-sm leading-relaxed text-neutral-700">
-                    {p.body}
-                  </p>
-                  <a
-                    href={p.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-xs text-neutral-900 underline underline-offset-4"
-                  >
-                    {p.host} ↗
-                  </a>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </section>
 
