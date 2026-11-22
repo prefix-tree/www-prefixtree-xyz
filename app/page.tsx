@@ -1,27 +1,7 @@
 import AsciiForest from "@/components/AsciiForest";
 import TreeMark from "@/components/TreeMark";
-import Trie from "@/components/Trie";
 
 const email = "partners@prefixtree.xyz";
-
-const notes = [
-  {
-    title: "small-team",
-    body: "Two people, Bohdan and Pavel. Short loops from an idea to a working thing.",
-  },
-  {
-    title: "many-branches",
-    body: "Several products in different domains. The common root is how they are made.",
-  },
-  {
-    title: "open-source",
-    body: "Some branches are open-source projects: code anyone can read, use and build on.",
-  },
-  {
-    title: "built-to-ship",
-    body: "We would rather show a working product than a deck about one.",
-  },
-];
 
 // a seedling, drawn in the hero garden's characters
 const seedling = String.raw`   \ | /
@@ -118,51 +98,8 @@ export default function Home() {
 
       <div className="stripes" />
 
-      {/* ---------- ABOUT ---------- */}
-      <section id="about" className="mx-auto max-w-5xl scroll-mt-24 px-6 py-32 sm:px-12">
-        <p className="max-w-3xl font-serif text-4xl leading-tight text-neutral-900 md:text-5xl">
-          How we grow things.{" "}
-          <span className="text-neutral-400">
-            A small team, many branches, and one root they all share.
-          </span>
-        </p>
-
-        <div className="mt-20 grid items-start gap-12 md:grid-cols-[1fr_1.3fr]">
-          <div className="font-mono text-sm">
-            <div className="text-neutral-500">prefix-tree/</div>
-            {notes.map((n, i) => {
-              const last = i === notes.length - 1;
-              return (
-                <div key={n.title}>
-                  <div className="mt-1 text-neutral-900">
-                    <span className="text-neutral-400">{last ? "└── " : "├── "}</span>
-                    {n.title}
-                  </div>
-                  <p
-                    className={`ml-[0.5ch] pb-3 pl-[3.5ch] font-sans text-sm leading-relaxed text-neutral-700 ${
-                      last ? "" : "border-l border-neutral-300"
-                    }`}
-                  >
-                    {n.body}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          <figure>
-            <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <Trie />
-            </div>
-            <figcaption className="mt-3 text-right font-mono text-xs text-neutral-400">
-              Fig. 1 &nbsp; Four words, one root
-            </figcaption>
-          </figure>
-        </div>
-      </section>
-
       {/* ---------- PROJECTS ---------- */}
-      <section id="projects" className="mx-auto max-w-5xl scroll-mt-24 px-6 pb-24 sm:px-12">
+      <section id="projects" className="mx-auto max-w-5xl scroll-mt-24 px-6 py-32 sm:px-12">
         <h2 className="max-w-3xl font-serif text-4xl leading-tight text-neutral-900 md:text-5xl">
           What grows here.{" "}
           <span className="text-neutral-400">

@@ -71,13 +71,6 @@ export default function RootLayout({
             <Link href="/#mission" className="rounded-lg px-2 py-1.5 hover:bg-black/5 sm:px-3">
               Mission
             </Link>
-            {/* the narrowest phones drop About; it is the next section after Mission */}
-            <Link
-              href="/#about"
-              className="rounded-lg px-2 py-1.5 hover:bg-black/5 max-[359px]:hidden sm:px-3"
-            >
-              About
-            </Link>
             <Link href="/#projects" className="rounded-lg px-2 py-1.5 hover:bg-black/5 sm:px-3">
               Projects
             </Link>
