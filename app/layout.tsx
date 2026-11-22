@@ -78,6 +78,9 @@ export default function RootLayout({
             >
               About
             </Link>
+            <Link href="/#projects" className="rounded-lg px-2 py-1.5 hover:bg-black/5 sm:px-3">
+              Projects
+            </Link>
             <a
               href={`mailto:${email}`}
               className="ml-1 rounded-lg bg-neutral-900 px-2.5 py-1.5 sm:px-3 text-white hover:bg-neutral-700"
