@@ -19,6 +19,13 @@ const projects = [
     host: "uberscene.prefixtree.xyz",
   },
   {
+    name: "uberseek",
+    kind: "open source",
+    body: "Video exploration for agents. An agent writes a small program to search and measure footage, looks only where a judgment needs eyes, picks the moment, and cuts a clip that is checked.",
+    href: "https://uberseek.prefixtree.xyz/",
+    host: "uberseek.prefixtree.xyz",
+  },
+  {
     name: "deletion.info",
     kind: "public good",
     body: "A free public resource, open to everyone.",
